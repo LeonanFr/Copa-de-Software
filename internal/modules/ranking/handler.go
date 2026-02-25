@@ -18,6 +18,7 @@ func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 	router.HandleFunc("/ranking", h.getRanking).Methods("GET")
 	router.HandleFunc("/ranking/team/{teamId}", h.getTeamRanking).Methods("GET")
+	router.HandleFunc("/ranking/stream", h.RankingSSE).Methods("GET")
 }
 
 func RegisterAdminRoutes(router *mux.Router, service *Service) {

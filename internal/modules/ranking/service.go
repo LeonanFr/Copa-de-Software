@@ -2,9 +2,8 @@ package ranking
 
 import (
 	"context"
-	"errors"
-
 	"copasoftware/internal/modules/teams"
+	"errors"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -26,7 +25,6 @@ func NewService(repo *Repository, teamSvc *teams.Service) *Service {
 }
 
 func (s *Service) AddScore(ctx context.Context, teamID primitive.ObjectID, value int, origin ScoreOrigin, modality, description string) error {
-
 	team, err := s.teamSvc.GetByID(ctx, teamID)
 	if err != nil {
 		return err
@@ -47,10 +45,12 @@ func (s *Service) AddScore(ctx context.Context, teamID primitive.ObjectID, value
 	}
 
 	if err := s.recalculateTeamRanking(ctx, teamID); err != nil {
-		// Logar erro mas não falhar a operação principal?
-		// Por simplicidade, vamos retornar erro.
 		return err
 	}
+
+	ranking, _ := s.GetRanking(context.Background())
+	Manager.Broadcast(ranking)
+
 	return nil
 }
 
@@ -100,5 +100,31 @@ func (s *Service) RecalculateAll(ctx context.Context) error {
 			}
 		}
 	}
+
+	ranking, _ := s.GetRanking(context.Background())
+	Manager.Broadcast(ranking)
+
+	return nil
+}
+
+func (s *Service) InitializeTeam(ctx context.Context, teamID primitive.ObjectID) error {
+	exists, err := s.repo.FindRankingByTeam(ctx, teamID)
+	if err != nil {
+		return err
+	}
+	if exists != nil {
+		return nil
+	}
+	tr := &TeamRanking{
+		TeamID: teamID,
+		Total:  0,
+	}
+	if err := s.repo.UpsertRanking(ctx, tr); err != nil {
+		return err
+	}
+
+	ranking, _ := s.GetRanking(context.Background())
+	Manager.Broadcast(ranking)
+
 	return nil
 }

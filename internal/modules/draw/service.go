@@ -2,10 +2,12 @@ package draw
 
 import (
 	"context"
+	"log"
 	"math/rand"
 	"time"
 
 	"copasoftware/internal/modules/participants"
+	"copasoftware/internal/modules/ranking"
 	"copasoftware/internal/modules/teamnames"
 	"copasoftware/internal/modules/teams"
 
@@ -16,17 +18,20 @@ type Service struct {
 	participantSvc *participants.Service
 	teamSvc        *teams.Service
 	teamNameSvc    *teamnames.Service
+	rankingSvc     *ranking.Service
 }
 
 func NewService(
 	participantSvc *participants.Service,
 	teamSvc *teams.Service,
 	teamNameSvc *teamnames.Service,
+	rankingSvc *ranking.Service,
 ) *Service {
 	return &Service{
 		participantSvc: participantSvc,
 		teamSvc:        teamSvc,
 		teamNameSvc:    teamNameSvc,
+		rankingSvc:     rankingSvc,
 	}
 }
 
@@ -136,10 +141,15 @@ func (s *Service) tryFormGroupsWithDifferentSemesters(ctx context.Context, bySem
 		for i, p := range group {
 			ids[i] = p.ID
 		}
-		if _, err := s.teamSvc.CreateDraw(ctx, ids); err != nil {
-			return bySemester
+		team, err := s.teamSvc.CreateDraw(ctx, ids)
+		if err != nil {
+			continue
 		}
-
+		if s.rankingSvc != nil && team != nil {
+			if err := s.rankingSvc.InitializeTeam(ctx, team.ID); err != nil {
+				log.Printf("Erro ao inicializar ranking para time sorteado %s: %v", team.ID.Hex(), err)
+			}
+		}
 		if !exhaustive {
 			break
 		}
@@ -167,8 +177,14 @@ func (s *Service) formAnyGroups(ctx context.Context, bySemester map[int][]partic
 		for i, p := range group {
 			ids[i] = p.ID
 		}
-		if _, err := s.teamSvc.CreateDraw(ctx, ids); err != nil {
+		team, err := s.teamSvc.CreateDraw(ctx, ids)
+		if err != nil {
 			break
+		}
+		if s.rankingSvc != nil && team != nil {
+			if err := s.rankingSvc.InitializeTeam(ctx, team.ID); err != nil {
+				log.Printf("Erro ao inicializar ranking para time sorteado %s: %v", team.ID.Hex(), err)
+			}
 		}
 	}
 

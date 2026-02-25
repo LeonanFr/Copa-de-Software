@@ -11,7 +11,8 @@ import (
 )
 
 type Handler struct {
-	service *Service
+	service    *Service
+	rankingSvc RankingInitializer
 }
 
 func RegisterPublicRoutes(router *mux.Router, service *Service) {
@@ -20,8 +21,11 @@ func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	router.HandleFunc("/teams/{id}", h.getByID).Methods("GET")
 }
 
-func RegisterAdminRoutes(router *mux.Router, service *Service) {
-	h := &Handler{service: service}
+func RegisterAdminRoutes(router *mux.Router, service *Service, rankingSvc RankingInitializer) {
+	h := &Handler{
+		service:    service,
+		rankingSvc: rankingSvc,
+	}
 	router.HandleFunc("/teams", h.createManual).Methods("POST")
 	router.HandleFunc("/teams/{id}/approve", h.approve).Methods("POST")
 	router.HandleFunc("/teams/{id}/reject", h.reject).Methods("POST")
@@ -98,10 +102,6 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 	shared.RespondJSON(w, http.StatusOK, team)
 }
 
-type approveRequest struct {
-	TeamName string `json:"teamName"`
-}
-
 func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id, err := primitive.ObjectIDFromHex(vars["id"])
@@ -121,6 +121,11 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	if h.rankingSvc != nil {
+		_ = h.rankingSvc.InitializeTeam(r.Context(), id)
+	}
+
 	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "aprovado"})
 }
 

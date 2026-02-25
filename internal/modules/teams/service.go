@@ -23,6 +23,10 @@ var (
 	ErrNotEnoughSemesters       = errors.New("time deve ter participantes de pelo menos 3 semestres diferentes")
 )
 
+type RankingInitializer interface {
+	InitializeTeam(ctx context.Context, teamID primitive.ObjectID) error
+}
+
 type Service struct {
 	repo           *Repository
 	participantSvc *participants.Service
@@ -178,8 +182,10 @@ func (s *Service) CreateDraw(ctx context.Context, participantIDs []primitive.Obj
 		_ = s.Delete(ctx, team.ID)
 		return nil, err
 	}
+
 	return team, nil
 }
+
 func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID) error {
 	team, err := s.repo.FindByID(ctx, teamID)
 	if err != nil {

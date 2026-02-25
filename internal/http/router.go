@@ -60,5 +60,6 @@ func NewRouter(db *database.Mongo) http.Handler {
 	ranking.RegisterAdminRoutes(adminRouter, rankingSvc)
 	participants.RegisterAdminRoutes(adminRouter, participantSvc)
 
+	router.Use(corsMiddleware)
 	return router
 }

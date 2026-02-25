@@ -12,6 +12,18 @@ func DecodeAndValidate(r *http.Request, dst interface{}) *AppError {
 	return nil
 }
 
+func IsValidMatricula(matricula string) bool {
+	if len(matricula) < 6 {
+		return false
+	}
+	for _, c := range matricula {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func IsValidSemester(semester int) bool {
 	return semester >= 1 && semester <= 8
 }

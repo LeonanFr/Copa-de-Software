@@ -34,7 +34,6 @@ type TeamInput struct {
 		Nome      string
 		Semestre  int
 	}
-	IsDraw bool
 }
 
 func (s *Service) SignupIndividual(ctx context.Context, input IndividualInput) (*participants.Participant, error) {
@@ -68,10 +67,6 @@ func (s *Service) SignupTeam(ctx context.Context, input TeamInput) (*teams.Team,
 			return nil, err
 		}
 		participantIDs = append(participantIDs, p.ID)
-	}
-
-	if input.IsDraw {
-		return s.teamSvc.CreateDraw(ctx, participantIDs)
 	}
 
 	return s.teamSvc.CreateManual(ctx, participantIDs)

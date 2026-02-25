@@ -12,5 +12,4 @@ type TeamPayload struct {
 		Nome      string `json:"nome"`
 		Semestre  int    `json:"semestre"`
 	} `json:"participants"`
-	IsDraw bool `json:"isDraw"`
 }

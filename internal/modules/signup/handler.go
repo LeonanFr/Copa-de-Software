@@ -1,7 +1,9 @@
 package signup
 
 import (
+	"copasoftware/internal/modules/teams"
 	"errors"
+	"log"
 	"net/http"
 
 	"copasoftware/internal/modules/participants"
@@ -65,9 +67,7 @@ func (h *Handler) signupTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	input := TeamInput{
-		IsDraw: payload.IsDraw,
-	}
+	input := TeamInput{}
 	for _, part := range payload.Participants {
 		input.Participants = append(input.Participants, struct {
 			Matricula string
@@ -87,7 +87,16 @@ func (h *Handler) signupTeam(w http.ResponseWriter, r *http.Request) {
 			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
 		case errors.Is(err, participants.ErrParticipantAlreadyExists):
 			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+		case errors.Is(err, participants.ErrParticipantNotFound):
+			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
+		case errors.Is(err, teams.ErrParticipantAlreadyInTeam):
+			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+		case errors.Is(err, teams.ErrNotEnoughSemesters):
+			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
+		case errors.Is(err, participants.ErrInvalidMatricula):
+			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
 		default:
+			log.Printf("Erro inesperado: %v", err)
 			shared.RespondError(w, shared.NewInternalServerError("erro na inscrição em time", err))
 		}
 		return

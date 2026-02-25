@@ -1,6 +1,7 @@
 package ranking
 
 import (
+	"errors"
 	"net/http"
 
 	"copasoftware/internal/shared"
@@ -13,11 +14,14 @@ type Handler struct {
 	service *Service
 }
 
-func NewHandler(router *mux.Router, service *Service) {
+func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
-
 	router.HandleFunc("/ranking", h.getRanking).Methods("GET")
 	router.HandleFunc("/ranking/team/{teamId}", h.getTeamRanking).Methods("GET")
+}
+
+func RegisterAdminRoutes(router *mux.Router, service *Service) {
+	h := &Handler{service: service}
 	router.HandleFunc("/ranking/score", h.addScore).Methods("POST")
 	router.HandleFunc("/ranking/recalculate", h.recalculateAll).Methods("POST")
 }
@@ -41,7 +45,7 @@ func (h *Handler) getTeamRanking(w http.ResponseWriter, r *http.Request) {
 
 	tr, err := h.service.GetTeamRanking(r.Context(), teamID)
 	if err != nil {
-		if err == ErrTeamNotFound {
+		if errors.Is(err, ErrTeamNotFound) {
 			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
 		} else {
 			shared.RespondError(w, shared.NewInternalServerError("erro ao obter ranking do time", err))
@@ -79,8 +83,8 @@ func (h *Handler) addScore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.AddScore(r.Context(), teamID, req.Value, origin, req.Modality, req.Description); err != nil {
-		switch err {
-		case ErrTeamNotFound:
+		switch {
+		case errors.Is(err, ErrTeamNotFound):
 			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
 		default:
 			shared.RespondError(w, shared.NewInternalServerError("erro ao adicionar pontuação", err))

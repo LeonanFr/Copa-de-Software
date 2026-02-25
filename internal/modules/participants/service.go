@@ -12,7 +12,8 @@ import (
 var (
 	ErrParticipantNotFound      = errors.New("participante não encontrado")
 	ErrParticipantAlreadyExists = errors.New("matrícula já cadastrada")
-	ErrInvalidSemester          = errors.New("semestre deve ser entre 1 e 8")
+	ErrInvalidSemester          = errors.New("semestre deve ser entre 1 e 10")
+	ErrInvalidMatricula         = errors.New("matrícula deve ter pelo menos 6 dígitos numéricos")
 )
 
 type Service struct {
@@ -27,7 +28,9 @@ func (s *Service) Create(ctx context.Context, matricula, nome string, semestre i
 	if !shared.IsValidSemester(semestre) {
 		return nil, ErrInvalidSemester
 	}
-
+	if !shared.IsValidMatricula(matricula) {
+		return nil, ErrInvalidMatricula
+	}
 	existing, err := s.repo.FindByMatricula(ctx, matricula)
 	if err != nil {
 		return nil, err

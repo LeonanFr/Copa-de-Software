@@ -1,0 +1,61 @@
+package http
+
+import (
+	"net/http"
+	"os"
+
+	"copasoftware/internal/database"
+	"copasoftware/internal/modules/auth"
+	"copasoftware/internal/modules/draw"
+	"copasoftware/internal/modules/participants"
+	"copasoftware/internal/modules/ranking"
+	"copasoftware/internal/modules/reserves"
+	"copasoftware/internal/modules/signup"
+	"copasoftware/internal/modules/teamnames"
+	"copasoftware/internal/modules/teams"
+
+	"github.com/gorilla/mux"
+)
+
+func NewRouter(db *database.Mongo) http.Handler {
+	router := mux.NewRouter()
+
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}).Methods("GET")
+
+	participantRepo := participants.NewRepository(db)
+	teamRepo := teams.NewRepository(db)
+	teamNameRepo := teamnames.NewRepository(db)
+	reserveRepo := reserves.NewRepository(db)
+	rankingRepo := ranking.NewRepository(db)
+	authRepo := auth.NewRepository(db)
+
+	participantSvc := participants.NewService(participantRepo)
+	teamNameSvc := teamnames.NewService(teamNameRepo)
+	teamSvc := teams.NewService(teamRepo, participantSvc, teamNameSvc)
+	signupSvc := signup.NewService(participantSvc, teamSvc)
+	reserveSvc := reserves.NewService(reserveRepo, participantSvc)
+	drawSvc := draw.NewService(participantSvc, teamSvc, teamNameSvc)
+	rankingSvc := ranking.NewService(rankingRepo, teamSvc)
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	authSvc := auth.NewService(authRepo, jwtSecret, 24)
+
+	participants.NewHandler(router, participantSvc)
+	signup.NewHandler(router, signupSvc)
+	teams.NewHandler(router, teamSvc)
+	ranking.NewHandler(router, rankingSvc)
+
+	auth.NewHandler(router, authSvc)
+
+	adminRouter := router.PathPrefix("/admin").Subrouter()
+	adminRouter.Use(AuthMiddleware(authSvc))
+
+	teamnames.NewHandler(adminRouter, teamNameSvc)
+	reserves.NewHandler(adminRouter, reserveSvc)
+	draw.NewHandler(adminRouter, drawSvc, reserveSvc)
+
+	return router
+}

@@ -19,6 +19,7 @@ import (
 
 func NewRouter(db *database.Mongo) http.Handler {
 	router := mux.NewRouter()
+	router.Use(corsMiddleware)
 
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -61,6 +62,5 @@ func NewRouter(db *database.Mongo) http.Handler {
 	ranking.RegisterAdminRoutes(adminRouter, rankingSvc)
 	participants.RegisterAdminRoutes(adminRouter, participantSvc)
 
-	router.Use(corsMiddleware)
 	return router
 }

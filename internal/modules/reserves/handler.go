@@ -18,9 +18,9 @@ type Handler struct {
 func NewHandler(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 
-	router.HandleFunc("/admin/reserves", h.list).Methods("GET")
-	router.HandleFunc("/admin/reserves", h.add).Methods("POST")
-	router.HandleFunc("/admin/reserves/{id}", h.remove).Methods("DELETE")
+	router.HandleFunc("/reserves", h.list).Methods("GET")
+	router.HandleFunc("/reserves", h.add).Methods("POST")
+	router.HandleFunc("/reserves/{id}", h.remove).Methods("DELETE")
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

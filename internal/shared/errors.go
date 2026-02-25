@@ -1,5 +1,7 @@
 package shared
 
+import "net/http"
+
 type AppError struct {
 	Code    int
 	Message string
@@ -27,4 +29,12 @@ func NewConflictError(message string, err error) *AppError {
 
 func NewInternalServerError(message string, err error) *AppError {
 	return &AppError{Code: 500, Message: message, Err: err}
+}
+
+func NewUnauthorizedError(message string, err error) *AppError {
+	return &AppError{
+		Code:    http.StatusUnauthorized,
+		Message: message,
+		Err:     err,
+	}
 }

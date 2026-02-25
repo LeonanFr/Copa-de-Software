@@ -16,8 +16,8 @@ type Handler struct {
 func NewHandler(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 
-	router.HandleFunc("/admin/team-names", h.addName).Methods("POST")
-	router.HandleFunc("/admin/team-names/available", h.listAvailable).Methods("GET")
+	router.HandleFunc("/team-names", h.addName).Methods("POST")
+	router.HandleFunc("/team-names/available", h.listAvailable).Methods("GET")
 }
 
 type addNameRequest struct {

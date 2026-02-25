@@ -110,17 +110,7 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req approveRequest
-	if err := shared.DecodeAndValidate(r, &req); err != nil {
-		shared.RespondError(w, err)
-		return
-	}
-	if req.TeamName == "" {
-		shared.RespondError(w, shared.NewBadRequestError("nome do time é obrigatório para aprovação", nil))
-		return
-	}
-
-	if err := h.service.Approve(r.Context(), id, req.TeamName); err != nil {
+	if err := h.service.Approve(r.Context(), id); err != nil {
 		switch {
 		case errors.Is(err, ErrTeamNotFound):
 			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))

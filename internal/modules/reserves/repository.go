@@ -24,7 +24,10 @@ func NewRepository(db *database.Mongo) *Repository {
 
 func (r *Repository) Insert(ctx context.Context, entry *ReserveEntry) error {
 	entry.CreatedAt = time.Now()
-	_, err := r.coll.InsertOne(ctx, entry)
+	result, err := r.coll.InsertOne(ctx, entry)
+	if err == nil {
+		entry.ID = result.InsertedID.(primitive.ObjectID)
+	}
 	return err
 }
 

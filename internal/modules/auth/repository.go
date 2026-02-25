@@ -8,6 +8,7 @@ import (
 	"copasoftware/internal/database"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -23,7 +24,10 @@ func NewRepository(db *database.Mongo) *Repository {
 
 func (r *Repository) Insert(ctx context.Context, admin *Admin) error {
 	admin.CreatedAt = time.Now()
-	_, err := r.coll.InsertOne(ctx, admin)
+	result, err := r.coll.InsertOne(ctx, admin)
+	if err == nil {
+		admin.ID = result.InsertedID.(primitive.ObjectID)
+	}
 	return err
 }
 

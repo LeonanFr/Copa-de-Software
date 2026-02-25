@@ -14,14 +14,21 @@ type Handler struct {
 	service *Service
 }
 
-func NewHandler(router *mux.Router, service *Service) {
+func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
-
 	router.HandleFunc("/participants", h.list).Methods("GET")
 	router.HandleFunc("/participants/{id}", h.getByID).Methods("GET")
 	router.HandleFunc("/participants/matricula/{matricula}", h.getByMatricula).Methods("GET")
+}
+
+func RegisterAdminRoutes(router *mux.Router, service *Service) {
+	h := &Handler{service: service}
 	router.HandleFunc("/participants/{id}", h.update).Methods("PUT")
 	router.HandleFunc("/participants/{id}/cancel", h.cancel).Methods("POST")
+}
+
+func NewHandler(router *mux.Router, service *Service) {
+	RegisterPublicRoutes(router, service)
 }
 
 type createRequest struct {

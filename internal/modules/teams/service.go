@@ -10,7 +10,9 @@ import (
 
 	"copasoftware/internal/modules/participants"
 	"copasoftware/internal/modules/teamnames"
+	"copasoftware/internal/shared"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -78,6 +80,13 @@ func (s *Service) calculateSemesterSum(ctx context.Context, participantIDs []pri
 	return sum, nil
 }
 
+func (s *Service) CreatePending(ctx context.Context, team *Team) error {
+	if team.Status != TeamStatusPending {
+		return ErrInvalidTeamStatus
+	}
+	return s.repo.Insert(ctx, team)
+}
+
 func (s *Service) CreateManual(ctx context.Context, participantIDs []primitive.ObjectID) (*Team, error) {
 	if len(participantIDs) != 3 {
 		return nil, errors.New("time deve ter exatamente 3 participantes")
@@ -92,7 +101,6 @@ func (s *Service) CreateManual(ctx context.Context, participantIDs []primitive.O
 		if err != nil {
 			return nil, err
 		}
-
 		teams, err := s.repo.FindByParticipant(ctx, pid)
 		if err != nil {
 			return nil, err
@@ -129,7 +137,6 @@ func (s *Service) CreateDraw(ctx context.Context, participantIDs []primitive.Obj
 		if err != nil {
 			return nil, err
 		}
-
 		teams, err := s.repo.FindByParticipant(ctx, pid)
 		if err != nil {
 			return nil, err
@@ -141,13 +148,14 @@ func (s *Service) CreateDraw(ctx context.Context, participantIDs []primitive.Obj
 		}
 	}
 
-	name, err := s.teamNameSvc.ReserveOne(ctx, primitive.NilObjectID)
+	nameID, name, err := s.teamNameSvc.ReserveOne(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	semesterSum, err := s.calculateSemesterSum(ctx, participantIDs)
 	if err != nil {
+		_ = s.teamNameSvc.ReleaseByID(ctx, nameID)
 		return nil, err
 	}
 	code := generateTeamCode(name, semesterSum)
@@ -161,17 +169,18 @@ func (s *Service) CreateDraw(ctx context.Context, participantIDs []primitive.Obj
 	}
 
 	if err := s.repo.Insert(ctx, team); err != nil {
-		_ = s.teamNameSvc.ReleaseByTeam(ctx, team.ID)
+		_ = s.teamNameSvc.ReleaseByID(ctx, nameID)
 		return nil, err
 	}
 
-	if err := s.teamNameSvc.ReleaseByTeam(ctx, team.ID); err != nil {
+	if err := s.teamNameSvc.AssignToTeam(ctx, nameID, team.ID); err != nil {
+		_ = s.teamNameSvc.ReleaseByID(ctx, nameID)
+		_ = s.Delete(ctx, team.ID)
+		return nil, err
 	}
-
 	return team, nil
 }
-
-func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID, teamName string) error {
+func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID) error {
 	team, err := s.repo.FindByID(ctx, teamID)
 	if err != nil {
 		return err
@@ -185,17 +194,63 @@ func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID, teamNa
 	if team.Status != TeamStatusPending {
 		return ErrInvalidTeamStatus
 	}
+	if len(team.ParticipantData) == 0 {
+		return errors.New("time pendente não contém dados dos participantes")
+	}
+	if len(team.ParticipantData) != 3 {
+		return errors.New("dados dos participantes inválidos")
+	}
 
-	semesterSum, err := s.calculateSemesterSum(ctx, team.Participants)
-	if err != nil {
+	participantIDs := make([]primitive.ObjectID, 0, 3)
+	for _, pd := range team.ParticipantData {
+		existing, _ := s.participantSvc.GetByMatricula(ctx, pd.Matricula)
+		if existing != nil {
+			return participants.ErrParticipantAlreadyExists
+		}
+		if !shared.IsValidSemester(pd.Semestre) {
+			return participants.ErrInvalidSemester
+		}
+	}
+
+	for _, pd := range team.ParticipantData {
+		p, err := s.participantSvc.Create(ctx, pd.Matricula, pd.Nome, pd.Semestre)
+		if err != nil {
+			for _, pid := range participantIDs {
+				_ = s.participantSvc.Cancel(ctx, pid)
+			}
+			return err
+		}
+		participantIDs = append(participantIDs, p.ID)
+	}
+
+	if err := s.validateDifferentSemesters(ctx, participantIDs); err != nil {
+		for _, pid := range participantIDs {
+			_ = s.participantSvc.Cancel(ctx, pid)
+		}
 		return err
 	}
-	code := generateTeamCode(teamName, semesterSum)
 
-	team.Status = TeamStatusApproved
-	team.Name = teamName
+	semesterSum, err := s.calculateSemesterSum(ctx, participantIDs)
+	if err != nil {
+		for _, pid := range participantIDs {
+			_ = s.participantSvc.Cancel(ctx, pid)
+		}
+		return err
+	}
+	code := generateTeamCode(team.Name, semesterSum)
+
 	team.Code = code
-	return s.repo.Update(ctx, team)
+	team.Participants = participantIDs
+	team.ParticipantData = nil
+	team.Status = TeamStatusApproved
+
+	if err := s.repo.Update(ctx, team); err != nil {
+		for _, pid := range participantIDs {
+			_ = s.participantSvc.Cancel(ctx, pid)
+		}
+		return err
+	}
+	return nil
 }
 
 func (s *Service) Reject(ctx context.Context, teamID primitive.ObjectID) error {
@@ -212,6 +267,11 @@ func (s *Service) Reject(ctx context.Context, teamID primitive.ObjectID) error {
 	if team.Status != TeamStatusPending {
 		return ErrInvalidTeamStatus
 	}
+
+	if !team.IsDraw && team.Name != "" {
+		_ = s.teamNameSvc.ReleaseByTeam(ctx, teamID)
+	}
+
 	team.Status = TeamStatusRejected
 	return s.repo.Update(ctx, team)
 }
@@ -229,8 +289,7 @@ func (s *Service) Cancel(ctx context.Context, teamID primitive.ObjectID) error {
 	}
 
 	if team.IsDraw && team.Name != "" {
-		if err := s.teamNameSvc.ReleaseByTeam(ctx, teamID); err != nil {
-		}
+		_ = s.teamNameSvc.ReleaseByTeam(ctx, teamID)
 	}
 
 	team.Status = TeamStatusCancelled
@@ -254,4 +313,9 @@ func (s *Service) List(ctx context.Context) ([]Team, error) {
 
 func (s *Service) GetTeamsByParticipant(ctx context.Context, participantID primitive.ObjectID) ([]Team, error) {
 	return s.repo.FindByParticipant(ctx, participantID)
+}
+
+func (s *Service) Delete(ctx context.Context, id primitive.ObjectID) error {
+	_, err := s.repo.coll.DeleteOne(ctx, bson.M{"_id": id})
+	return err
 }

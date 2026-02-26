@@ -98,3 +98,28 @@ func (r *Repository) UpdateStatus(ctx context.Context, id primitive.ObjectID, st
 	_, err := r.coll.UpdateOne(ctx, bson.M{"_id": id}, update)
 	return err
 }
+
+func (r *Repository) ExistsByMatriculaWithStatus(
+	ctx context.Context,
+	matricula string,
+	statuses []TeamStatus,
+) (bool, error) {
+
+	filter := bson.M{
+		"participantData.matricula": matricula,
+		"status": bson.M{
+			"$in": statuses,
+		},
+	}
+
+	err := r.coll.FindOne(ctx, filter).Err()
+	if err == nil {
+		return true, nil
+	}
+
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return false, nil
+	}
+
+	return false, err
+}

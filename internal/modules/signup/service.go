@@ -16,7 +16,11 @@ type Service struct {
 	teamNameSvc    *teamnames.Service
 }
 
-func NewService(participantSvc *participants.Service, teamSvc *teams.Service, teamNameSvc *teamnames.Service) *Service {
+func NewService(
+	participantSvc *participants.Service,
+	teamSvc *teams.Service,
+	teamNameSvc *teamnames.Service,
+) *Service {
 	return &Service{
 		participantSvc: participantSvc,
 		teamSvc:        teamSvc,
@@ -38,53 +42,77 @@ type TeamInput struct {
 	}
 }
 
-func (s *Service) SignupIndividual(ctx context.Context, input IndividualInput) (*participants.Participant, error) {
-	p, err := s.participantSvc.Create(ctx, input.Matricula, input.Nome, input.Semestre)
+func (s *Service) SignupIndividual(
+	ctx context.Context,
+	input IndividualInput,
+) (*participants.Participant, error) {
+
+	if !shared.IsValidMatricula(input.Matricula) {
+		return nil, participants.ErrInvalidMatricula
+	}
+
+	if !shared.IsValidSemester(input.Semestre) {
+		return nil, participants.ErrInvalidSemester
+	}
+
+	if _, err := s.participantSvc.GetByMatricula(ctx, input.Matricula); err == nil {
+		return nil, participants.ErrParticipantAlreadyExists
+	}
+
+	inTeam, err := s.teamSvc.ExistsByMatriculaWithStatus(
+		ctx,
+		input.Matricula,
+		[]teams.TeamStatus{
+			teams.TeamStatusPending,
+			teams.TeamStatusApproved,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	teamsList, err := s.teamSvc.GetTeamsByParticipant(ctx, p.ID)
-	if err != nil {
-		return nil, err
-	}
-	for _, t := range teamsList {
-		if t.Status == teams.TeamStatusPending || t.Status == teams.TeamStatusApproved {
-			return nil, errors.New("participante já está em um time ativo")
-		}
+	if inTeam {
+		return nil, errors.New("participante já está vinculado a um time")
 	}
 
-	return p, nil
+	return s.participantSvc.Create(
+		ctx,
+		input.Matricula,
+		input.Nome,
+		input.Semestre,
+	)
 }
 
-func (s *Service) SignupTeam(ctx context.Context, input TeamInput) (*teams.Team, error) {
+func (s *Service) SignupTeam(
+	ctx context.Context,
+	input TeamInput,
+) (*teams.Team, error) {
+
 	if len(input.Participants) != 3 {
 		return nil, errors.New("time deve ter exatamente 3 participantes")
 	}
 
-	for _, p := range input.Participants {
+	seen := make(map[string]struct{})
+	participantData := make([]teams.ParticipantData, 3)
+
+	for i, p := range input.Participants {
+
 		if !shared.IsValidMatricula(p.Matricula) {
 			return nil, participants.ErrInvalidMatricula
 		}
+
 		if !shared.IsValidSemester(p.Semestre) {
 			return nil, participants.ErrInvalidSemester
 		}
-		existing, _ := s.participantSvc.GetByMatricula(ctx, p.Matricula)
-		if existing != nil {
+
+		if _, ok := seen[p.Matricula]; ok {
+			return nil, errors.New("matrícula duplicada no time")
+		}
+		seen[p.Matricula] = struct{}{}
+
+		if _, err := s.participantSvc.GetByMatricula(ctx, p.Matricula); err == nil {
 			return nil, participants.ErrParticipantAlreadyExists
 		}
-	}
 
-	nameID, name, err := s.teamNameSvc.ReserveOne(ctx)
-	if err != nil {
-		if errors.Is(err, teamnames.ErrNoNamesAvailable) {
-			return nil, errors.New("não há nomes de times disponíveis no momento")
-		}
-		return nil, err
-	}
-
-	participantData := make([]teams.ParticipantData, len(input.Participants))
-	for i, p := range input.Participants {
 		participantData[i] = teams.ParticipantData{
 			Matricula: p.Matricula,
 			Nome:      p.Nome,
@@ -92,23 +120,26 @@ func (s *Service) SignupTeam(ctx context.Context, input TeamInput) (*teams.Team,
 		}
 	}
 
-	team := &teams.Team{
-		Name:            name,
-		ParticipantData: participantData,
-		Status:          teams.TeamStatusPending,
-		IsDraw:          false,
-	}
-
-	if err := s.teamSvc.CreatePending(ctx, team); err != nil {
-		_ = s.teamNameSvc.ReleaseByID(ctx, nameID)
-		return nil, err
-	}
-
-	if err := s.teamNameSvc.AssignToTeam(ctx, nameID, team.ID); err != nil {
-		_ = s.teamSvc.Delete(ctx, team.ID)
-		_ = s.teamNameSvc.ReleaseByID(ctx, nameID)
+	team, err := s.teamSvc.CreatePending(ctx, participantData)
+	if err != nil {
 		return nil, err
 	}
 
 	return team, nil
+}
+
+func hasAtLeastTwoDifferentSemesters(
+	parts []struct {
+	Matricula string
+	Nome      string
+	Semestre  int
+},
+) bool {
+	first := parts[0].Semestre
+	for _, p := range parts[1:] {
+		if p.Semestre != first {
+			return true
+		}
+	}
+	return false
 }

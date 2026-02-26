@@ -67,14 +67,23 @@ func (h *Handler) RankingSSE(w http.ResponseWriter, r *http.Request) {
 		log.Printf("SSE: erro ao obter ranking inicial: %v", err)
 	} else {
 		data, _ := json.Marshal(ranking)
-		_, err := fmt.Fprintf(w, "data: %s\n\n", data)
-		if err != nil {
-			return
-		}
+		fmt.Fprintf(w, "data: %s\n\n", data)
 		w.(http.Flusher).Flush()
 		log.Printf("SSE: ranking inicial enviado")
 	}
 
-	<-r.Context().Done()
-	log.Printf("SSE: cliente %s desconectado", r.RemoteAddr)
+	for {
+		select {
+		case <-r.Context().Done():
+			log.Printf("SSE: cliente %s desconectado", r.RemoteAddr)
+			return
+		case msg := <-ch:
+			log.Printf("SSE: enviando mensagem para %s", r.RemoteAddr)
+			_, err := fmt.Fprintf(w, "data: %s\n\n", msg)
+			if err != nil {
+				return
+			}
+			w.(http.Flusher).Flush()
+		}
+	}
 }

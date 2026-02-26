@@ -1,11 +1,13 @@
 package draw
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
 
 	"copasoftware/internal/modules/reserves"
+	"copasoftware/internal/modules/teamnames"
 	"copasoftware/internal/shared"
 
 	"github.com/gorilla/mux"
@@ -39,6 +41,10 @@ func (h *Handler) runDraw(w http.ResponseWriter, r *http.Request) {
 
 	remaining, err := h.service.RunDraw(r.Context(), isFinal)
 	if err != nil {
+		if errors.Is(err, teamnames.ErrNoNamesAvailable) {
+			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+			return
+		}
 		shared.RespondError(w, shared.NewInternalServerError("erro ao executar sorteio", err))
 		return
 	}

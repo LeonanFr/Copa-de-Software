@@ -1,6 +1,8 @@
 package teams
 
 import (
+	"copasoftware/internal/modules/teamnames"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -23,9 +25,56 @@ func RegisterPublicRoutes(router *mux.Router, service *Service) {
 
 func RegisterAdminRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
+	router.HandleFunc("/teams", h.createManual).Methods("POST")
 	router.HandleFunc("/teams/{id}/approve", h.approve).Methods("POST")
 	router.HandleFunc("/teams/{id}/reject", h.reject).Methods("POST")
 	router.HandleFunc("/teams/{id}/cancel", h.cancel).Methods("POST")
+}
+
+type createManualRequest struct {
+	ParticipantIDs []string `json:"participantIds"`
+}
+
+func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
+	var req createManualRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		shared.RespondError(w, shared.NewBadRequestError("corpo da requisição inválido", err))
+		return
+	}
+
+	if len(req.ParticipantIDs) != 3 {
+		shared.RespondError(w, shared.NewBadRequestError("time deve ter exatamente 3 participantes", nil))
+		return
+	}
+
+	ids := make([]primitive.ObjectID, len(req.ParticipantIDs))
+	for i, idStr := range req.ParticipantIDs {
+		id, err := primitive.ObjectIDFromHex(idStr)
+		if err != nil {
+			shared.RespondError(w, shared.NewBadRequestError("id de participante inválido: "+idStr, err))
+			return
+		}
+		ids[i] = id
+	}
+
+	team, err := h.service.CreateManual(r.Context(), ids)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrTeamNotFound):
+			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
+		case errors.Is(err, ErrParticipantAlreadyInTeam):
+			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+		case errors.Is(err, ErrNotEnoughSemesters):
+			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
+		case errors.Is(err, teamnames.ErrNoNamesAvailable):
+			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+		default:
+			shared.RespondError(w, shared.NewInternalServerError("erro ao criar time manual", err))
+		}
+		return
+	}
+
+	shared.RespondJSON(w, http.StatusCreated, team)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {

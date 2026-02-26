@@ -162,6 +162,7 @@ func (s *Service) CreateManual(ctx context.Context, participantIDs []primitive.O
 	if len(participantIDs) != 3 {
 		return nil, errors.New("time deve ter exatamente 3 participantes")
 	}
+
 	participantsList := make([]*participants.Participant, 3)
 	for i, id := range participantIDs {
 		p, err := s.participantSvc.GetByID(ctx, id)
@@ -170,13 +171,7 @@ func (s *Service) CreateManual(ctx context.Context, participantIDs []primitive.O
 		}
 		participantsList[i] = p
 	}
-	semMap := make(map[int]bool)
-	for _, p := range participantsList {
-		semMap[p.Semestre] = true
-	}
-	if len(semMap) < 2 {
-		return nil, ErrNotEnoughSemesters
-	}
+
 	for _, p := range participantsList {
 		exists, err := s.ExistsByMatriculaWithStatus(ctx, p.Matricula, []TeamStatus{TeamStatusPending, TeamStatusApproved})
 		if err != nil {
@@ -186,20 +181,24 @@ func (s *Service) CreateManual(ctx context.Context, participantIDs []primitive.O
 			return nil, ErrParticipantAlreadyInTeam
 		}
 	}
+
 	nameID, name, err := s.teamNameSvc.ReserveOne(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	team := &Team{
 		Name:         name,
 		Participants: participantIDs,
 		Status:       TeamStatusPending,
 		IsDraw:       false,
 	}
+
 	if err := s.repo.Insert(ctx, team); err != nil {
 		_ = s.teamNameSvc.ReleaseByID(ctx, nameID)
 		return nil, err
 	}
+
 	_ = s.teamNameSvc.AssignToTeam(ctx, nameID, team.ID)
 	return team, nil
 }

@@ -32,19 +32,18 @@ func NewService(repo *Repository, participantSvc *participants.Service, teamName
 	return &Service{repo, participantSvc, teamNameSvc}
 }
 
-func (s *Service) List(ctx context.Context) ([]*Team, error) {
-	return s.repo.List(ctx)
-}
-
-func (s *Service) GetByID(ctx context.Context, id primitive.ObjectID) (*Team, error) {
-	team, err := s.repo.FindByID(ctx, id)
+func (s *Service) List(ctx context.Context, statuses []TeamStatus) ([]*Team, error) {
+	var teams []*Team
+	var err error
+	if len(statuses) > 0 {
+		teams, err = s.repo.FindByStatuses(ctx, statuses)
+	} else {
+		teams, err = s.repo.List(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if team == nil {
-		return nil, ErrTeamNotFound
-	}
-	return team, nil
+	return s.enrichTeams(ctx, teams)
 }
 
 func (s *Service) GetTeamsByParticipant(ctx context.Context, participantID primitive.ObjectID, matricula string) ([]*Team, error) {
@@ -65,6 +64,21 @@ func (s *Service) GetTeamsByParticipant(ctx context.Context, participantID primi
 		}
 	}
 	return result, nil
+}
+
+func (s *Service) GetByID(ctx context.Context, id primitive.ObjectID) (*Team, error) {
+	team, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if team == nil {
+		return nil, ErrTeamNotFound
+	}
+	enriched, err := s.enrichTeams(ctx, []*Team{team})
+	if err != nil {
+		return nil, err
+	}
+	return enriched[0], nil
 }
 
 func (s *Service) GetTeamsByMatricula(ctx context.Context, matricula string) ([]*Team, error) {
@@ -345,4 +359,28 @@ func (s *Service) ExistsByMatriculaWithStatusStrings(ctx context.Context, matric
 		ts = append(ts, TeamStatus(st))
 	}
 	return s.ExistsByMatriculaWithStatus(ctx, matricula, ts)
+}
+
+func (s *Service) enrichTeams(ctx context.Context, teams []*Team) ([]*Team, error) {
+	for _, team := range teams {
+		if len(team.Participants) > 0 {
+			participantsList := make([]ParticipantData, 0, len(team.Participants))
+			for _, pid := range team.Participants {
+				p, err := s.participantSvc.GetByID(ctx, pid)
+				if err != nil {
+					if errors.Is(err, participants.ErrParticipantNotFound) {
+						continue
+					}
+					return nil, err
+				}
+				participantsList = append(participantsList, ParticipantData{
+					Matricula: p.Matricula,
+					Nome:      p.Nome,
+					Semestre:  p.Semestre,
+				})
+			}
+			team.ParticipantData = participantsList
+		}
+	}
+	return teams, nil
 }

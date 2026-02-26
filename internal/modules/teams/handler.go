@@ -48,7 +48,6 @@ func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Buscar os participantes pelas matrículas
 	participantsList := make([]*participants.Participant, 3)
 	for i, matricula := range req.Matriculas {
 		p, err := h.service.participantSvc.GetByMatricula(r.Context(), matricula)
@@ -87,7 +86,13 @@ func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	teams, err := h.service.List(r.Context())
+	statusFilter := r.URL.Query().Get("status")
+	var statusList []TeamStatus
+	if statusFilter != "" {
+		statusList = append(statusList, TeamStatus(statusFilter))
+	}
+
+	teams, err := h.service.List(r.Context(), statusList)
 	if err != nil {
 		shared.RespondError(w, shared.NewInternalServerError("erro ao listar times", err))
 		return

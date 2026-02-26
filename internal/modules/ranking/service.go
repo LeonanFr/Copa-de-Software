@@ -89,7 +89,7 @@ func (s *Service) recalculateTeamRanking(ctx context.Context, teamID primitive.O
 }
 
 func (s *Service) RecalculateAll(ctx context.Context) error {
-	teamsList, err := s.teamSvc.List(ctx)
+	teamsList, err := s.teamSvc.List(ctx, nil)
 	if err != nil {
 		return err
 	}

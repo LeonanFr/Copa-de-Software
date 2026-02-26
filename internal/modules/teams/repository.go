@@ -191,3 +191,24 @@ func (r *Repository) List(ctx context.Context) ([]*Team, error) {
 	}
 	return teams, nil
 }
+
+func (r *Repository) FindByStatuses(ctx context.Context, statuses []TeamStatus) ([]*Team, error) {
+	filter := bson.M{
+		"status": bson.M{"$in": statuses},
+	}
+	cursor, err := r.coll.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+
+		}
+	}(cursor, ctx)
+	var teams []*Team
+	if err = cursor.All(ctx, &teams); err != nil {
+		return nil, err
+	}
+	return teams, nil
+}

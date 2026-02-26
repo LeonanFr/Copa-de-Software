@@ -39,13 +39,29 @@ func (h *Handler) runDraw(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	remaining, err := h.service.RunDraw(r.Context(), isFinal)
+	result, err := h.service.RunDraw(r.Context(), isFinal)
 	if err != nil {
 		if errors.Is(err, teamnames.ErrNoNamesAvailable) {
-			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+			shared.RespondError(w, shared.NewConflictError("nenhum nome de time disponível para o sorteio", nil))
 			return
 		}
 		shared.RespondError(w, shared.NewInternalServerError("erro ao executar sorteio", err))
+		return
+	}
+
+	remaining := result.Remaining
+	totalEligible := result.TotalEligible
+
+	if len(remaining) == totalEligible && totalEligible > 0 {
+		message := "Não foi possível formar novos times com os participantes restantes"
+		if isFinal {
+			message = "Sorteio final concluído: não há participantes suficientes para formar novos times"
+		}
+		response := map[string]interface{}{
+			"message":   message,
+			"remaining": remaining,
+		}
+		shared.RespondJSON(w, http.StatusOK, response)
 		return
 	}
 

@@ -17,6 +17,11 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+type Result struct {
+	Remaining     []participants.Participant
+	TotalEligible int
+}
+
 type Service struct {
 	participantSvc *participants.Service
 	teamSvc        *teams.Service
@@ -35,27 +40,34 @@ func NewService(
 	}
 }
 
-func (s *Service) RunDraw(ctx context.Context, isFinal bool) ([]participants.Participant, error) {
+func (s *Service) RunDraw(ctx context.Context, isFinal bool) (*Result, error) {
 	eligible, err := s.getEligibleParticipants(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if len(eligible) == 0 {
-		return nil, nil
+	totalEligible := len(eligible)
+	if totalEligible == 0 {
+		return &Result{Remaining: []participants.Participant{}, TotalEligible: 0}, nil
 	}
 
 	bySemester := s.groupBySemester(eligible)
 
 	if !isFinal {
 		bySemester = s.tryFormGroupsWithDifferentSemesters(ctx, bySemester, false)
-		return s.flattenRemaining(bySemester), nil
+		return &Result{
+			Remaining:     s.flattenRemaining(bySemester),
+			TotalEligible: totalEligible,
+		}, nil
 	}
 
 	bySemester = s.tryFormGroupsWithDifferentSemesters(ctx, bySemester, true)
 	bySemester = s.tryFormGroupsWithTwoSemesters(ctx, bySemester)
 	bySemester = s.formGroupsSameSemester(ctx, bySemester)
 
-	return s.flattenRemaining(bySemester), nil
+	return &Result{
+		Remaining:     s.flattenRemaining(bySemester),
+		TotalEligible: totalEligible,
+	}, nil
 }
 
 func (s *Service) getEligibleParticipants(ctx context.Context) ([]participants.Participant, error) {

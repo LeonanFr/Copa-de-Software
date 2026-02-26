@@ -7,6 +7,7 @@ import (
 	"copasoftware/internal/shared"
 
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Handler struct {
@@ -21,6 +22,7 @@ func RegisterPublicRoutes(router *mux.Router, service *Service) {
 
 func RegisterAdminRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
+	router.HandleFunc("/participants/id/{id}", h.getById).Methods("GET")
 	router.HandleFunc("/participants/{matricula}", h.update).Methods("PUT")
 	router.HandleFunc("/participants/{matricula}/cancel", h.cancel).Methods("POST")
 }
@@ -32,6 +34,27 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.RespondJSON(w, http.StatusOK, participants)
+}
+
+func (h *Handler) getById(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
+		return
+	}
+
+	p, err := h.service.GetByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrParticipantNotFound) {
+			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
+		} else {
+			shared.RespondError(w, shared.NewInternalServerError("erro ao buscar participante", err))
+		}
+		return
+	}
+	shared.RespondJSON(w, http.StatusOK, p)
 }
 
 func (h *Handler) getByMatricula(w http.ResponseWriter, r *http.Request) {

@@ -62,7 +62,7 @@ func (h *Handler) RankingSSE(w http.ResponseWriter, r *http.Request) {
 	Manager.AddClient(ch)
 	defer Manager.RemoveClient(ch)
 
-	ranking, err := h.service.GetRanking(r.Context())
+	ranking, err := h.service.GetFullRanking(r.Context())
 	if err != nil {
 		log.Printf("SSE: erro ao obter ranking inicial: %v", err)
 	} else {

@@ -29,3 +29,9 @@ type TeamRanking struct {
 	Total     int                `bson:"total" json:"total"`
 	UpdatedAt time.Time          `bson:"updated_at" json:"updatedAt"`
 }
+
+type RankingEntry struct {
+	TeamID   primitive.ObjectID `json:"teamId"`
+	TeamName string             `json:"teamName"`
+	Total    int                `json:"total"`
+}

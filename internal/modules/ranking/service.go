@@ -48,7 +48,7 @@ func (s *Service) AddScore(ctx context.Context, teamID primitive.ObjectID, value
 		return err
 	}
 
-	ranking, _ := s.GetRanking(context.Background())
+	ranking, _ := s.GetFullRanking(context.Background())
 	Manager.Broadcast(ranking)
 
 	return nil
@@ -66,10 +66,6 @@ func (s *Service) GetTeamRanking(ctx context.Context, teamID primitive.ObjectID)
 		}, nil
 	}
 	return tr, nil
-}
-
-func (s *Service) GetRanking(ctx context.Context) ([]TeamRanking, error) {
-	return s.repo.FindAllRankings(ctx)
 }
 
 func (s *Service) recalculateTeamRanking(ctx context.Context, teamID primitive.ObjectID) error {
@@ -101,7 +97,7 @@ func (s *Service) RecalculateAll(ctx context.Context) error {
 		}
 	}
 
-	ranking, _ := s.GetRanking(context.Background())
+	ranking, _ := s.GetFullRanking(context.Background())
 	Manager.Broadcast(ranking)
 
 	return nil
@@ -123,8 +119,28 @@ func (s *Service) InitializeTeam(ctx context.Context, teamID primitive.ObjectID)
 		return err
 	}
 
-	ranking, _ := s.GetRanking(context.Background())
+	ranking, _ := s.GetFullRanking(context.Background())
 	Manager.Broadcast(ranking)
 
 	return nil
+}
+
+func (s *Service) GetFullRanking(ctx context.Context) ([]RankingEntry, error) {
+	rankings, err := s.repo.FindAllRankings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]RankingEntry, 0, len(rankings))
+	for _, r := range rankings {
+		team, err := s.teamSvc.GetByID(ctx, r.TeamID)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, RankingEntry{
+			TeamID:   r.TeamID,
+			TeamName: team.Name,
+			Total:    r.Total,
+		})
+	}
+	return entries, nil
 }

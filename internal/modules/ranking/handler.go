@@ -28,7 +28,7 @@ func RegisterAdminRoutes(router *mux.Router, service *Service) {
 }
 
 func (h *Handler) getRanking(w http.ResponseWriter, r *http.Request) {
-	ranking, err := h.service.GetRanking(r.Context())
+	ranking, err := h.service.GetFullRanking(r.Context())
 	if err != nil {
 		shared.RespondError(w, shared.NewInternalServerError("erro ao obter ranking", err))
 		return

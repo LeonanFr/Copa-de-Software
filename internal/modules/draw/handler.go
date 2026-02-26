@@ -22,7 +22,7 @@ func NewHandler(router *mux.Router, service *Service, reserveSvc *reserves.Servi
 		reserveSvc: reserveSvc,
 	}
 
-	router.HandleFunc("/admin/draw", h.runDraw).Methods("POST")
+	router.HandleFunc("/draw", h.runDraw).Methods("POST")
 }
 
 func (h *Handler) runDraw(w http.ResponseWriter, r *http.Request) {

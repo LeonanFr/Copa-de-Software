@@ -27,38 +27,6 @@ func RegisterAdminRoutes(router *mux.Router, service *Service) {
 	router.HandleFunc("/participants/{id}/cancel", h.cancel).Methods("POST")
 }
 
-func NewHandler(router *mux.Router, service *Service) {
-	RegisterPublicRoutes(router, service)
-}
-
-type createRequest struct {
-	Matricula string `json:"matricula"`
-	Nome      string `json:"nome"`
-	Semestre  int    `json:"semestre"`
-}
-
-func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
-	var req createRequest
-	if err := shared.DecodeAndValidate(r, &req); err != nil {
-		shared.RespondError(w, err)
-		return
-	}
-
-	p, err := h.service.Create(r.Context(), req.Matricula, req.Nome, req.Semestre)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrInvalidSemester):
-			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
-		case errors.Is(err, ErrParticipantAlreadyExists):
-			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
-		default:
-			shared.RespondError(w, shared.NewInternalServerError("erro ao criar participante", err))
-		}
-		return
-	}
-	shared.RespondJSON(w, http.StatusCreated, p)
-}
-
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	participants, err := h.service.List(r.Context())
 	if err != nil {

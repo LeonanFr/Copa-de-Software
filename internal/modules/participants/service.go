@@ -12,7 +12,7 @@ import (
 var (
 	ErrParticipantNotFound      = errors.New("participante não encontrado")
 	ErrParticipantAlreadyExists = errors.New("matrícula já cadastrada")
-	ErrInvalidSemester          = errors.New("semestre deve ser entre 1 e 10")
+	ErrInvalidSemester          = errors.New("semestre deve ser entre 1 e 8")
 	ErrInvalidMatricula         = errors.New("matrícula deve ter pelo menos 6 dígitos numéricos")
 )
 

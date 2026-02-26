@@ -11,66 +11,21 @@ import (
 )
 
 type Handler struct {
-	service    *Service
-	rankingSvc RankingInitializer
+	service *Service
 }
 
 func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 	router.HandleFunc("/teams", h.list).Methods("GET")
 	router.HandleFunc("/teams/{id}", h.getByID).Methods("GET")
+	router.HandleFunc("/teams/participant/{matricula}", h.getByParticipantMatricula).Methods("GET")
 }
 
-func RegisterAdminRoutes(router *mux.Router, service *Service, rankingSvc RankingInitializer) {
-	h := &Handler{
-		service:    service,
-		rankingSvc: rankingSvc,
-	}
-	router.HandleFunc("/teams", h.createManual).Methods("POST")
+func RegisterAdminRoutes(router *mux.Router, service *Service) {
+	h := &Handler{service: service}
 	router.HandleFunc("/teams/{id}/approve", h.approve).Methods("POST")
 	router.HandleFunc("/teams/{id}/reject", h.reject).Methods("POST")
 	router.HandleFunc("/teams/{id}/cancel", h.cancel).Methods("POST")
-}
-
-type createManualRequest struct {
-	ParticipantIDs []string `json:"participantIds"`
-}
-
-func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
-	var req createManualRequest
-	if err := shared.DecodeAndValidate(r, &req); err != nil {
-		shared.RespondError(w, err)
-		return
-	}
-
-	if len(req.ParticipantIDs) != 3 {
-		shared.RespondError(w, shared.NewBadRequestError("time deve ter exatamente 3 participantes", nil))
-		return
-	}
-
-	ids := make([]primitive.ObjectID, len(req.ParticipantIDs))
-	for i, idStr := range req.ParticipantIDs {
-		id, err := primitive.ObjectIDFromHex(idStr)
-		if err != nil {
-			shared.RespondError(w, shared.NewBadRequestError("id de participante inválido: "+idStr, err))
-			return
-		}
-		ids[i] = id
-	}
-
-	team, err := h.service.CreateManual(r.Context(), ids)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrParticipantAlreadyInTeam):
-			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
-		case errors.Is(err, ErrNotEnoughSemesters):
-			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
-		default:
-			shared.RespondError(w, shared.NewInternalServerError("erro ao criar time manual", err))
-		}
-		return
-	}
-	shared.RespondJSON(w, http.StatusCreated, team)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -83,8 +38,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
+	id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
 	if err != nil {
 		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
 		return
@@ -99,12 +53,28 @@ func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
 	shared.RespondJSON(w, http.StatusOK, team)
 }
 
+func (h *Handler) getByParticipantMatricula(w http.ResponseWriter, r *http.Request) {
+	matricula := mux.Vars(r)["matricula"]
+	if matricula == "" {
+		shared.RespondError(w, shared.NewBadRequestError("matrícula não fornecida", nil))
+		return
+	}
+
+	teams, err := h.service.GetTeamsByMatricula(r.Context(), matricula)
+	if err != nil {
+		shared.RespondError(w, shared.NewInternalServerError("erro ao buscar times do participante", err))
+		return
+	}
+
+	shared.RespondJSON(w, http.StatusOK, teams)
+}
+
 func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
+	id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
 	if err != nil {
 		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
 		return
@@ -122,16 +92,11 @@ func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.rankingSvc != nil {
-		_ = h.rankingSvc.InitializeTeam(r.Context(), id)
-	}
-
 	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "aprovado"})
 }
 
 func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
+	id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
 	if err != nil {
 		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
 		return
@@ -148,12 +113,12 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
 	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "rejeitado"})
 }
 
 func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
+	id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
 	if err != nil {
 		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
 		return
@@ -167,5 +132,6 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
 	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "cancelado"})
 }

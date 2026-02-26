@@ -42,31 +42,23 @@ type TeamInput struct {
 	}
 }
 
-func (s *Service) SignupIndividual(
-	ctx context.Context,
-	input IndividualInput,
-) (*participants.Participant, error) {
-
+func (s *Service) SignupIndividual(ctx context.Context, input IndividualInput) (*participants.Participant, error) {
 	if !shared.IsValidMatricula(input.Matricula) {
 		return nil, participants.ErrInvalidMatricula
 	}
-
 	if !shared.IsValidSemester(input.Semestre) {
 		return nil, participants.ErrInvalidSemester
 	}
 
-	if _, err := s.participantSvc.GetByMatricula(ctx, input.Matricula); err == nil {
+	_, err := s.participantSvc.GetByMatricula(ctx, input.Matricula)
+	if err == nil {
 		return nil, participants.ErrParticipantAlreadyExists
 	}
+	if !errors.Is(err, participants.ErrParticipantNotFound) {
+		return nil, err
+	}
 
-	inTeam, err := s.teamSvc.ExistsByMatriculaWithStatus(
-		ctx,
-		input.Matricula,
-		[]teams.TeamStatus{
-			teams.TeamStatusPending,
-			teams.TeamStatusApproved,
-		},
-	)
+	inTeam, err := s.teamSvc.ExistsByMatriculaWithStatus(ctx, input.Matricula, []teams.TeamStatus{teams.TeamStatusPending, teams.TeamStatusApproved})
 	if err != nil {
 		return nil, err
 	}
@@ -74,19 +66,10 @@ func (s *Service) SignupIndividual(
 		return nil, errors.New("participante já está vinculado a um time")
 	}
 
-	return s.participantSvc.Create(
-		ctx,
-		input.Matricula,
-		input.Nome,
-		input.Semestre,
-	)
+	return s.participantSvc.Create(ctx, input.Matricula, input.Nome, input.Semestre)
 }
 
-func (s *Service) SignupTeam(
-	ctx context.Context,
-	input TeamInput,
-) (*teams.Team, error) {
-
+func (s *Service) SignupTeam(ctx context.Context, input TeamInput) (*teams.Team, error) {
 	if len(input.Participants) != 3 {
 		return nil, errors.New("time deve ter exatamente 3 participantes")
 	}
@@ -95,22 +78,23 @@ func (s *Service) SignupTeam(
 	participantData := make([]teams.ParticipantData, 3)
 
 	for i, p := range input.Participants {
-
 		if !shared.IsValidMatricula(p.Matricula) {
 			return nil, participants.ErrInvalidMatricula
 		}
-
 		if !shared.IsValidSemester(p.Semestre) {
 			return nil, participants.ErrInvalidSemester
 		}
-
 		if _, ok := seen[p.Matricula]; ok {
 			return nil, errors.New("matrícula duplicada no time")
 		}
 		seen[p.Matricula] = struct{}{}
 
-		if _, err := s.participantSvc.GetByMatricula(ctx, p.Matricula); err == nil {
+		_, err := s.participantSvc.GetByMatricula(ctx, p.Matricula)
+		if err == nil {
 			return nil, participants.ErrParticipantAlreadyExists
+		}
+		if !errors.Is(err, participants.ErrParticipantNotFound) {
+			return nil, err
 		}
 
 		participantData[i] = teams.ParticipantData{
@@ -124,22 +108,5 @@ func (s *Service) SignupTeam(
 	if err != nil {
 		return nil, err
 	}
-
 	return team, nil
-}
-
-func hasAtLeastTwoDifferentSemesters(
-	parts []struct {
-	Matricula string
-	Nome      string
-	Semestre  int
-},
-) bool {
-	first := parts[0].Semestre
-	for _, p := range parts[1:] {
-		if p.Semestre != first {
-			return true
-		}
-	}
-	return false
 }

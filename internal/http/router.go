@@ -45,7 +45,7 @@ func NewRouter(db *database.Mongo) http.Handler {
 
 	teamSvc := teams.NewService(teamRepo, participantSvc, teamNameSvc)
 	rankingSvc := ranking.NewService(rankingRepo, teamSvc)
-	drawSvc := draw.NewService(participantSvc, teamSvc, teamNameSvc, rankingSvc)
+	drawSvc := draw.NewService(participantSvc, teamSvc, rankingSvc)
 	signupSvc := signup.NewService(participantSvc, teamSvc, teamNameSvc)
 	reserveSvc := reserves.NewService(reserveRepo, participantSvc)
 
@@ -65,7 +65,7 @@ func NewRouter(db *database.Mongo) http.Handler {
 	teamnames.NewHandler(adminRouter, teamNameSvc)
 	reserves.NewHandler(adminRouter, reserveSvc)
 	draw.NewHandler(adminRouter, drawSvc, reserveSvc)
-	teams.RegisterAdminRoutes(adminRouter, teamSvc, rankingSvc)
+	teams.RegisterAdminRoutes(adminRouter, teamSvc)
 	ranking.RegisterAdminRoutes(adminRouter, rankingSvc)
 	participants.RegisterAdminRoutes(adminRouter, participantSvc)
 

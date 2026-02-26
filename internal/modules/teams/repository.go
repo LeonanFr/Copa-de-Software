@@ -55,7 +55,6 @@ func (r *Repository) FindByParticipant(ctx context.Context, participantID primit
 
 		}
 	}(cursor, ctx)
-
 	var teams []Team
 	if err = cursor.All(ctx, &teams); err != nil {
 		return nil, err
@@ -74,7 +73,6 @@ func (r *Repository) FindAll(ctx context.Context) ([]Team, error) {
 
 		}
 	}(cursor, ctx)
-
 	var teams []Team
 	if err = cursor.All(ctx, &teams); err != nil {
 		return nil, err
@@ -99,27 +97,97 @@ func (r *Repository) UpdateStatus(ctx context.Context, id primitive.ObjectID, st
 	return err
 }
 
-func (r *Repository) ExistsByMatriculaWithStatus(
-	ctx context.Context,
-	matricula string,
-	statuses []TeamStatus,
-) (bool, error) {
-
+func (r *Repository) ExistsByMatriculaWithStatus(ctx context.Context, matricula string, statuses []TeamStatus) (bool, error) {
 	filter := bson.M{
 		"participantData.matricula": matricula,
-		"status": bson.M{
-			"$in": statuses,
-		},
+		"status":                    bson.M{"$in": statuses},
 	}
-
 	err := r.coll.FindOne(ctx, filter).Err()
 	if err == nil {
 		return true, nil
 	}
-
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return false, nil
 	}
-
 	return false, err
+}
+
+func (r *Repository) ExistsByMatriculaInParticipantData(ctx context.Context, matricula string, statuses []TeamStatus) (bool, error) {
+	filter := bson.M{
+		"participantData.matricula": matricula,
+		"status":                    bson.M{"$in": statuses},
+	}
+	count, err := r.coll.CountDocuments(ctx, filter)
+	return count > 0, err
+}
+
+func (r *Repository) ExistsByParticipantID(ctx context.Context, participantID primitive.ObjectID, statuses []TeamStatus) (bool, error) {
+	filter := bson.M{
+		"participants": participantID,
+		"status":       bson.M{"$in": statuses},
+	}
+	count, err := r.coll.CountDocuments(ctx, filter)
+	return count > 0, err
+}
+
+func (r *Repository) FindByParticipantID(ctx context.Context, participantID primitive.ObjectID, statuses []TeamStatus) ([]*Team, error) {
+	filter := bson.M{
+		"participants": participantID,
+		"status":       bson.M{"$in": statuses},
+	}
+	cursor, err := r.coll.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+
+		}
+	}(cursor, ctx)
+	var teams []*Team
+	if err = cursor.All(ctx, &teams); err != nil {
+		return nil, err
+	}
+	return teams, nil
+}
+
+func (r *Repository) FindByParticipantMatricula(ctx context.Context, matricula string, statuses []TeamStatus) ([]*Team, error) {
+	filter := bson.M{
+		"participantData.matricula": matricula,
+		"status":                    bson.M{"$in": statuses},
+	}
+	cursor, err := r.coll.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+
+		}
+	}(cursor, ctx)
+	var teams []*Team
+	if err = cursor.All(ctx, &teams); err != nil {
+		return nil, err
+	}
+	return teams, nil
+}
+
+func (r *Repository) List(ctx context.Context) ([]*Team, error) {
+	cursor, err := r.coll.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer func(cursor *mongo.Cursor, ctx context.Context) {
+		err := cursor.Close(ctx)
+		if err != nil {
+
+		}
+	}(cursor, ctx)
+	var teams []*Team
+	if err = cursor.All(ctx, &teams); err != nil {
+		return nil, err
+	}
+	return teams, nil
 }

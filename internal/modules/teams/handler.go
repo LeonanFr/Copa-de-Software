@@ -1,6 +1,7 @@
 package teams
 
 import (
+	"copasoftware/internal/modules/participants"
 	"copasoftware/internal/modules/teamnames"
 	"encoding/json"
 	"errors"
@@ -32,7 +33,7 @@ func RegisterAdminRoutes(router *mux.Router, service *Service) {
 }
 
 type createManualRequest struct {
-	ParticipantIDs []string `json:"participantIds"`
+	Matriculas []string `json:"matriculas"`
 }
 
 func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
@@ -42,19 +43,29 @@ func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.ParticipantIDs) != 3 {
+	if len(req.Matriculas) != 3 {
 		shared.RespondError(w, shared.NewBadRequestError("time deve ter exatamente 3 participantes", nil))
 		return
 	}
 
-	ids := make([]primitive.ObjectID, len(req.ParticipantIDs))
-	for i, idStr := range req.ParticipantIDs {
-		id, err := primitive.ObjectIDFromHex(idStr)
+	// Buscar os participantes pelas matrículas
+	participantsList := make([]*participants.Participant, 3)
+	for i, matricula := range req.Matriculas {
+		p, err := h.service.participantSvc.GetByMatricula(r.Context(), matricula)
 		if err != nil {
-			shared.RespondError(w, shared.NewBadRequestError("id de participante inválido: "+idStr, err))
+			if errors.Is(err, participants.ErrParticipantNotFound) {
+				shared.RespondError(w, shared.NewNotFoundError("participante com matrícula "+matricula+" não encontrado", nil))
+				return
+			}
+			shared.RespondError(w, shared.NewInternalServerError("erro ao buscar participante", err))
 			return
 		}
-		ids[i] = id
+		participantsList[i] = p
+	}
+
+	ids := make([]primitive.ObjectID, 3)
+	for i, p := range participantsList {
+		ids[i] = p.ID
 	}
 
 	team, err := h.service.CreateManual(r.Context(), ids)
@@ -64,10 +75,8 @@ func (h *Handler) createManual(w http.ResponseWriter, r *http.Request) {
 			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
 		case errors.Is(err, ErrParticipantAlreadyInTeam):
 			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
-		case errors.Is(err, ErrNotEnoughSemesters):
-			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
 		case errors.Is(err, teamnames.ErrNoNamesAvailable):
-			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+			shared.RespondError(w, shared.NewConflictError("nenhum nome de time disponível", nil))
 		default:
 			shared.RespondError(w, shared.NewInternalServerError("erro ao criar time manual", err))
 		}

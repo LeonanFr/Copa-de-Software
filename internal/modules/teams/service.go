@@ -338,3 +338,11 @@ func (s *Service) ExistsByMatriculaWithStatus(ctx context.Context, matricula str
 	}
 	return s.repo.ExistsByParticipantID(ctx, p.ID, statuses)
 }
+
+func (s *Service) ExistsByMatriculaWithStatusStrings(ctx context.Context, matricula string, statuses []string) (bool, error) {
+	var ts []TeamStatus
+	for _, st := range statuses {
+		ts = append(ts, TeamStatus(st))
+	}
+	return s.ExistsByMatriculaWithStatus(ctx, matricula, ts)
+}

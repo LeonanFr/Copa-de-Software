@@ -7,7 +7,6 @@ import (
 	"copasoftware/internal/shared"
 
 	"github.com/gorilla/mux"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Handler struct {
@@ -17,14 +16,13 @@ type Handler struct {
 func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 	router.HandleFunc("/participants", h.list).Methods("GET")
-	router.HandleFunc("/participants/{id}", h.getByID).Methods("GET")
-	router.HandleFunc("/participants/matricula/{matricula}", h.getByMatricula).Methods("GET")
+	router.HandleFunc("/participants/{matricula}", h.getByMatricula).Methods("GET")
 }
 
 func RegisterAdminRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
-	router.HandleFunc("/participants/{id}", h.update).Methods("PUT")
-	router.HandleFunc("/participants/{id}/cancel", h.cancel).Methods("POST")
+	router.HandleFunc("/participants/{matricula}", h.update).Methods("PUT")
+	router.HandleFunc("/participants/{matricula}/cancel", h.cancel).Methods("POST")
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -36,29 +34,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	shared.RespondJSON(w, http.StatusOK, participants)
 }
 
-func (h *Handler) getByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
-	if err != nil {
-		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
-		return
-	}
-
-	p, err := h.service.GetByID(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, ErrParticipantNotFound) {
-			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
-		} else {
-			shared.RespondError(w, shared.NewInternalServerError("erro ao buscar participante", err))
-		}
-		return
-	}
-	shared.RespondJSON(w, http.StatusOK, p)
-}
-
 func (h *Handler) getByMatricula(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	matricula := vars["matricula"]
+	matricula := mux.Vars(r)["matricula"]
+	if matricula == "" {
+		shared.RespondError(w, shared.NewBadRequestError("matrícula não fornecida", nil))
+		return
+	}
 
 	p, err := h.service.GetByMatricula(r.Context(), matricula)
 	if err != nil {
@@ -78,10 +59,9 @@ type updateRequest struct {
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
-	if err != nil {
-		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
+	matricula := mux.Vars(r)["matricula"]
+	if matricula == "" {
+		shared.RespondError(w, shared.NewBadRequestError("matrícula não fornecida", nil))
 		return
 	}
 
@@ -91,7 +71,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, err := h.service.Update(r.Context(), id, req.Nome, req.Semestre)
+	p, err := h.service.UpdateByMatricula(r.Context(), matricula, req.Nome, req.Semestre)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrParticipantNotFound):
@@ -107,14 +87,13 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := primitive.ObjectIDFromHex(vars["id"])
-	if err != nil {
-		shared.RespondError(w, shared.NewBadRequestError("id inválido", err))
+	matricula := mux.Vars(r)["matricula"]
+	if matricula == "" {
+		shared.RespondError(w, shared.NewBadRequestError("matrícula não fornecida", nil))
 		return
 	}
 
-	if err := h.service.Cancel(r.Context(), id); err != nil {
+	if err := h.service.CancelByMatricula(r.Context(), matricula); err != nil {
 		if errors.Is(err, ErrParticipantNotFound) {
 			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
 		} else {

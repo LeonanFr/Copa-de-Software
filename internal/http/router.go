@@ -41,9 +41,13 @@ func NewRouter(db *database.Mongo) http.Handler {
 	authRepo := auth.NewRepository(db)
 
 	participantSvc := participants.NewService(participantRepo)
+
 	teamNameSvc := teamnames.NewService(teamNameRepo)
 
 	teamSvc := teams.NewService(teamRepo, participantSvc, teamNameSvc)
+
+	participantSvc.SetTeamChecker(teamSvc)
+
 	rankingSvc := ranking.NewService(rankingRepo, teamSvc)
 	drawSvc := draw.NewService(participantSvc, teamSvc, rankingSvc)
 	signupSvc := signup.NewService(participantSvc, teamSvc, teamNameSvc)

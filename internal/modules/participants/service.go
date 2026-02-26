@@ -14,14 +14,24 @@ var (
 	ErrParticipantAlreadyExists = errors.New("matrícula já cadastrada")
 	ErrInvalidSemester          = errors.New("semestre deve ser entre 1 e 8")
 	ErrInvalidMatricula         = errors.New("matrícula deve ter pelo menos 6 dígitos numéricos")
+	ErrParticipantInActiveTeam  = errors.New("participante está em um time ativo e não pode ser cancelado")
 )
 
+type TeamChecker interface {
+	ExistsByMatriculaWithStatusStrings(ctx context.Context, matricula string, statuses []string) (bool, error)
+}
+
 type Service struct {
-	repo *Repository
+	repo        *Repository
+	teamChecker TeamChecker
 }
 
 func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
+}
+
+func (s *Service) SetTeamChecker(checker TeamChecker) {
+	s.teamChecker = checker
 }
 
 func (s *Service) Create(ctx context.Context, matricula, nome string, semestre int) (*Participant, error) {
@@ -96,10 +106,37 @@ func (s *Service) Update(ctx context.Context, id primitive.ObjectID, nome string
 	return p, nil
 }
 
+func (s *Service) UpdateByMatricula(ctx context.Context, matricula string, nome string, semestre int) (*Participant, error) {
+	p, err := s.GetByMatricula(ctx, matricula)
+	if err != nil {
+		return nil, err
+	}
+	return s.Update(ctx, p.ID, nome, semestre)
+}
+
 func (s *Service) Cancel(ctx context.Context, id primitive.ObjectID) error {
-	_, err := s.GetByID(ctx, id)
+	p, err := s.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
+
+	if s.teamChecker != nil {
+		inTeam, err := s.teamChecker.ExistsByMatriculaWithStatusStrings(ctx, p.Matricula, []string{"pending", "approved"})
+		if err != nil {
+			return err
+		}
+		if inTeam {
+			return ErrParticipantInActiveTeam
+		}
+	}
+
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *Service) CancelByMatricula(ctx context.Context, matricula string) error {
+	p, err := s.GetByMatricula(ctx, matricula)
+	if err != nil {
+		return err
+	}
+	return s.Cancel(ctx, p.ID)
 }

@@ -11,7 +11,7 @@ import (
 
 var (
 	ErrNameAlreadyExists = errors.New("nome de time já existe na lista")
-	ErrNoNamesAvailable  = errors.New("nenhum nome de time disponível")
+	ErrNoNamesAvailable  = errors.New("nenhum nome de time disponível, consulte a organização do evento")
 	ErrNameNotFound      = errors.New("nome não encontrado")
 )
 

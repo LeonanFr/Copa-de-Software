@@ -1,6 +1,7 @@
 package signup
 
 import (
+	"copasoftware/internal/modules/teamnames"
 	"copasoftware/internal/modules/teams"
 	"errors"
 	"log"
@@ -43,6 +44,8 @@ func (h *Handler) signupIndividual(w http.ResponseWriter, r *http.Request) {
 			shared.RespondError(w, shared.NewBadRequestError(err.Error(), nil))
 		case errors.Is(err, participants.ErrParticipantAlreadyExists):
 			shared.RespondError(w, shared.NewConflictError(err.Error(), nil))
+		case errors.Is(err, teamnames.ErrNoNamesAvailable):
+			shared.RespondError(w, shared.NewConflictError("nenhum nome de time disponível no momento", nil))
 		default:
 			shared.RespondError(w, shared.NewInternalServerError("erro na inscrição individual", err))
 		}

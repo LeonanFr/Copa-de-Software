@@ -53,6 +53,8 @@ func NewRouter(db *database.Mongo) http.Handler {
 	signupSvc := signup.NewService(participantSvc, teamSvc, teamNameSvc)
 	reserveSvc := reserves.NewService(reserveRepo, participantSvc)
 
+	participantSvc.SetReserveRemover(reserveSvc)
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	authSvc := auth.NewService(authRepo, jwtSecret, 24)
 

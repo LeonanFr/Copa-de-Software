@@ -20,10 +20,18 @@ var (
 type TeamChecker interface {
 	ExistsByMatriculaWithStatusStrings(ctx context.Context, matricula string, statuses []string) (bool, error)
 }
+type ReserveRemover interface {
+	RemoveByParticipant(ctx context.Context, participantID primitive.ObjectID) error
+}
 
 type Service struct {
-	repo        *Repository
-	teamChecker TeamChecker
+	repo           *Repository
+	teamChecker    TeamChecker
+	reserveRemover ReserveRemover
+}
+
+func (s *Service) SetReserveRemover(remover ReserveRemover) {
+	s.reserveRemover = remover
 }
 
 func NewService(repo *Repository) *Service {
@@ -127,6 +135,12 @@ func (s *Service) Cancel(ctx context.Context, id primitive.ObjectID) error {
 		}
 		if inTeam {
 			return ErrParticipantInActiveTeam
+		}
+	}
+
+	if s.reserveRemover != nil {
+		if err := s.reserveRemover.RemoveByParticipant(ctx, id); err != nil {
+			return err
 		}
 	}
 

@@ -17,12 +17,22 @@ type Handler struct {
 	service *Service
 }
 
+type TournamentTeamResponse struct {
+	Exists     bool                `json:"exists"`
+	Integrates []ParticipantSimple `json:"integrantes"`
+}
+
+type ParticipantSimple struct {
+	Matricula string `json:"matricula"`
+	Nome      string `json:"nome"`
+}
+
 func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 	router.HandleFunc("/teams", h.list).Methods("GET")
 	router.HandleFunc("/teams/{id}", h.getByID).Methods("GET")
 	router.HandleFunc("/teams/participant/{matricula}", h.getByParticipantMatricula).Methods("GET")
-	router.HandleFunc("/teams/code/{code}", h.getByCode).Methods("GET")
+	router.HandleFunc("/teams/code/tournament/{code}", h.getForTournamentByCode).Methods("GET")
 }
 
 func RegisterAdminRoutes(router *mux.Router, service *Service) {
@@ -137,6 +147,54 @@ func (h *Handler) getByParticipantMatricula(w http.ResponseWriter, r *http.Reque
 	shared.RespondJSON(w, http.StatusOK, teams)
 }
 
+func (h *Handler) getForTournamentByCode(w http.ResponseWriter, r *http.Request) {
+	code := mux.Vars(r)["code"]
+	if code == "" {
+		shared.RespondError(w, shared.NewBadRequestError("código não fornecido", nil))
+		return
+	}
+
+	team, err := h.service.GetByCode(r.Context(), code)
+	if err != nil {
+		if errors.Is(err, ErrTeamNotFound) {
+			shared.RespondJSON(w, http.StatusOK, TournamentTeamResponse{Exists: false})
+			return
+		}
+		shared.RespondError(w, shared.NewInternalServerError("erro ao buscar time", err))
+		return
+	}
+
+	if team.Status != TeamStatusApproved {
+		shared.RespondJSON(w, http.StatusOK, TournamentTeamResponse{Exists: false})
+		return
+	}
+
+	var integrantes []ParticipantSimple
+	if len(team.ParticipantData) > 0 {
+		for _, p := range team.ParticipantData {
+			integrantes = append(integrantes, ParticipantSimple{
+				Matricula: p.Matricula,
+				Nome:      p.Nome,
+			})
+		}
+	} else {
+		for _, pid := range team.Participants {
+			p, err := h.service.participantSvc.GetByID(r.Context(), pid)
+			if err != nil {
+				continue
+			}
+			integrantes = append(integrantes, ParticipantSimple{
+				Matricula: p.Matricula,
+				Nome:      p.Nome,
+			})
+		}
+	}
+
+	shared.RespondJSON(w, http.StatusOK, TournamentTeamResponse{
+		Exists:     true,
+		Integrates: integrantes,
+	})
+}
 func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 	id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
 	if err != nil {

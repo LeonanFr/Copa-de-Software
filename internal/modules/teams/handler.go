@@ -157,7 +157,12 @@ func (h *Handler) getForTournamentByCode(w http.ResponseWriter, r *http.Request)
 	team, err := h.service.GetByCode(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, ErrTeamNotFound) {
-			shared.RespondJSON(w, http.StatusOK, TournamentTeamResponse{Exists: false})
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(TournamentTeamResponse{
+				Exists:     false,
+				Integrates: []ParticipantSimple{},
+			})
 			return
 		}
 		shared.RespondError(w, shared.NewInternalServerError("erro ao buscar time", err))
@@ -165,36 +170,31 @@ func (h *Handler) getForTournamentByCode(w http.ResponseWriter, r *http.Request)
 	}
 
 	if team.Status != TeamStatusApproved {
-		shared.RespondJSON(w, http.StatusOK, TournamentTeamResponse{Exists: false})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(TournamentTeamResponse{
+			Exists:     false,
+			Integrates: []ParticipantSimple{},
+		})
 		return
 	}
 
-	var integrantes []ParticipantSimple
-	if len(team.ParticipantData) > 0 {
-		for _, p := range team.ParticipantData {
-			integrantes = append(integrantes, ParticipantSimple{
-				Matricula: p.Matricula,
-				Nome:      p.Nome,
-			})
-		}
-	} else {
-		for _, pid := range team.Participants {
-			p, err := h.service.participantSvc.GetByID(r.Context(), pid)
-			if err != nil {
-				continue
-			}
-			integrantes = append(integrantes, ParticipantSimple{
-				Matricula: p.Matricula,
-				Nome:      p.Nome,
-			})
-		}
+	integrantes := make([]ParticipantSimple, 0, len(team.ParticipantData))
+	for _, p := range team.ParticipantData {
+		integrantes = append(integrantes, ParticipantSimple{
+			Matricula: p.Matricula,
+			Nome:      p.Nome,
+		})
 	}
 
-	shared.RespondJSON(w, http.StatusOK, TournamentTeamResponse{
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(TournamentTeamResponse{
 		Exists:     true,
 		Integrates: integrantes,
 	})
 }
+
 func (h *Handler) approve(w http.ResponseWriter, r *http.Request) {
 	id, err := primitive.ObjectIDFromHex(mux.Vars(r)["id"])
 	if err != nil {

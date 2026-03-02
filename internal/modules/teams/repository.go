@@ -212,3 +212,12 @@ func (r *Repository) FindByStatuses(ctx context.Context, statuses []TeamStatus) 
 	}
 	return teams, nil
 }
+
+func (r *Repository) FindByCode(ctx context.Context, code string) (*Team, error) {
+	var t Team
+	err := r.coll.FindOne(ctx, bson.M{"code": code}).Decode(&t)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	return &t, err
+}

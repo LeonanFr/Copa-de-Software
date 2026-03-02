@@ -384,3 +384,18 @@ func (s *Service) enrichTeams(ctx context.Context, teams []*Team) ([]*Team, erro
 	}
 	return teams, nil
 }
+
+func (s *Service) GetByCode(ctx context.Context, code string) (*Team, error) {
+	team, err := s.repo.FindByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if team == nil {
+		return nil, ErrTeamNotFound
+	}
+	enriched, err := s.enrichTeams(ctx, []*Team{team})
+	if err != nil {
+		return nil, err
+	}
+	return enriched[0], nil
+}

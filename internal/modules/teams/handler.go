@@ -22,6 +22,7 @@ func RegisterPublicRoutes(router *mux.Router, service *Service) {
 	router.HandleFunc("/teams", h.list).Methods("GET")
 	router.HandleFunc("/teams/{id}", h.getByID).Methods("GET")
 	router.HandleFunc("/teams/participant/{matricula}", h.getByParticipantMatricula).Methods("GET")
+	router.HandleFunc("/teams/code/{code}", h.getByCode).Methods("GET")
 }
 
 func RegisterAdminRoutes(router *mux.Router, service *Service) {
@@ -197,4 +198,22 @@ func (h *Handler) cancel(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "cancelado"})
+}
+
+func (h *Handler) getByCode(w http.ResponseWriter, r *http.Request) {
+	code := mux.Vars(r)["code"]
+	if code == "" {
+		shared.RespondError(w, shared.NewBadRequestError("código não fornecido", nil))
+		return
+	}
+	team, err := h.service.GetByCode(r.Context(), code)
+	if err != nil {
+		if errors.Is(err, ErrTeamNotFound) {
+			shared.RespondError(w, shared.NewNotFoundError(err.Error(), nil))
+		} else {
+			shared.RespondError(w, shared.NewInternalServerError("erro ao buscar time por código", err))
+		}
+		return
+	}
+	shared.RespondJSON(w, http.StatusOK, team)
 }

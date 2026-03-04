@@ -1,6 +1,7 @@
 package ranking
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -12,6 +13,15 @@ import (
 
 type Handler struct {
 	service *Service
+}
+type EventRequest struct {
+	TeamCode  string `json:"team_code"`
+	Type      string `json:"type"`
+	Matricula string `json:"matricula,omitempty"`
+}
+
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
 }
 
 func RegisterPublicRoutes(router *mux.Router, service *Service) {
@@ -101,4 +111,40 @@ func (h *Handler) recalculateAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "ranking recalculado"})
+}
+
+func (h *Handler) HandlePuzzleEvent(w http.ResponseWriter, r *http.Request) {
+	var req EventRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		shared.RespondError(w, shared.NewBadRequestError("corpo inválido", err))
+		return
+	}
+	if req.TeamCode == "" {
+		shared.RespondError(w, shared.NewBadRequestError("team_code obrigatório", nil))
+		return
+	}
+	err := h.service.AddPuzzleEvent(r.Context(), req.TeamCode, req.Matricula)
+	if err != nil {
+		shared.RespondError(w, shared.NewInternalServerError("erro ao processar evento", err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HandleCaseEvent(w http.ResponseWriter, r *http.Request) {
+	var req EventRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		shared.RespondError(w, shared.NewBadRequestError("corpo inválido", err))
+		return
+	}
+	if req.TeamCode == "" {
+		shared.RespondError(w, shared.NewBadRequestError("team_code obrigatório", nil))
+		return
+	}
+	err := h.service.AddCaseEvent(r.Context(), req.TeamCode)
+	if err != nil {
+		shared.RespondError(w, shared.NewInternalServerError("erro ao processar evento", err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

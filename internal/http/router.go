@@ -58,12 +58,18 @@ func NewRouter(db *database.Mongo) http.Handler {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	authSvc := auth.NewService(authRepo, jwtSecret, 24)
 
+	rankingHandler := ranking.NewHandler(rankingSvc)
+
 	participants.RegisterPublicRoutes(router, participantSvc)
 	signup.NewHandler(router, signupSvc)
 	teams.RegisterPublicRoutes(router, teamSvc)
 	ranking.RegisterPublicRoutes(router, rankingSvc)
 
 	auth.NewHandler(router, authSvc)
+	router.HandleFunc("/events/puzzle", rankingHandler.HandlePuzzleEvent).Methods("POST")
+	router.HandleFunc("/events/case", rankingHandler.HandleCaseEvent).Methods("POST")
+
+	teamSvc.SetRankingSvc(rankingSvc)
 
 	adminRouter := router.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(AuthMiddleware(authSvc))

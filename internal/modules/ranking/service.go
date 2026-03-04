@@ -144,3 +144,35 @@ func (s *Service) GetFullRanking(ctx context.Context) ([]RankingEntry, error) {
 	}
 	return entries, nil
 }
+
+func (s *Service) AddPuzzleEvent(ctx context.Context, teamCode, matricula string) error {
+	team, err := s.teamSvc.GetByCode(ctx, teamCode)
+	if err != nil {
+		return err
+	}
+	if team == nil {
+		return errors.New("time não encontrado")
+	}
+	if team.Status != teams.TeamStatusApproved {
+		return errors.New("time não aprovado")
+	}
+	return s.AddScore(ctx, team.ID, 1, OriginMatch, "puzzle", "Puzzle resolvido por "+matricula)
+}
+
+func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
+	team, err := s.teamSvc.GetByCode(ctx, teamCode)
+	if err != nil {
+		return err
+	}
+	if team == nil {
+		return errors.New("time não encontrado")
+	}
+	if team.Status != teams.TeamStatusApproved {
+		return errors.New("time não aprovado")
+	}
+	return s.AddScore(ctx, team.ID, 10, OriginMatch, "case", "Caso completo")
+}
+
+func (s *Service) DeleteByTeam(ctx context.Context, teamID primitive.ObjectID) error {
+	return s.repo.DeleteRankingByTeam(ctx, teamID)
+}

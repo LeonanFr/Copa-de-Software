@@ -110,3 +110,8 @@ func (r *Repository) FindAllRankings(ctx context.Context) ([]TeamRanking, error)
 	}
 	return rankings, nil
 }
+
+func (r *Repository) DeleteRankingByTeam(ctx context.Context, teamID primitive.ObjectID) error {
+	_, err := r.rankColl.DeleteOne(ctx, bson.M{"_id": teamID})
+	return err
+}

@@ -15,6 +15,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type RankingService interface {
+	InitializeTeam(ctx context.Context, teamID primitive.ObjectID) error
+	DeleteByTeam(ctx context.Context, teamID primitive.ObjectID) error
+}
+
 var (
 	ErrTeamNotFound             = errors.New("time não encontrado")
 	ErrInvalidTeamStatus        = errors.New("status inválido para esta operação")
@@ -26,12 +31,20 @@ type Service struct {
 	repo           *Repository
 	participantSvc *participants.Service
 	teamNameSvc    *teamnames.Service
+	rankingSvc     RankingService
 }
 
 func NewService(repo *Repository, participantSvc *participants.Service, teamNameSvc *teamnames.Service) *Service {
-	return &Service{repo, participantSvc, teamNameSvc}
+	return &Service{
+		repo:           repo,
+		participantSvc: participantSvc,
+		teamNameSvc:    teamNameSvc,
+	}
 }
 
+func (s *Service) SetRankingSvc(rankingSvc RankingService) {
+	s.rankingSvc = rankingSvc
+}
 func (s *Service) List(ctx context.Context, statuses []TeamStatus) ([]*Team, error) {
 	var teams []*Team
 	var err error
@@ -262,6 +275,22 @@ func (s *Service) CreateDraw(ctx context.Context, participantIDs []primitive.Obj
 	return team, nil
 }
 
+func (s *Service) Reject(ctx context.Context, id primitive.ObjectID) error {
+	team, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if team == nil {
+		return ErrTeamNotFound
+	}
+	if team.Status != TeamStatusPending {
+		return ErrInvalidTeamStatus
+	}
+	_ = s.teamNameSvc.ReleaseByTeam(ctx, id)
+	team.Status = TeamStatusRejected
+	return s.repo.Update(ctx, team)
+}
+
 func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID) error {
 	team, err := s.repo.FindByID(ctx, teamID)
 	if err != nil {
@@ -303,23 +332,15 @@ func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID) error 
 		return errors.New("time sem participantes")
 	}
 	team.Status = TeamStatusApproved
-	return s.repo.Update(ctx, team)
-}
 
-func (s *Service) Reject(ctx context.Context, id primitive.ObjectID) error {
-	team, err := s.repo.FindByID(ctx, id)
-	if err != nil {
+	if err := s.repo.Update(ctx, team); err != nil {
 		return err
 	}
-	if team == nil {
-		return ErrTeamNotFound
+
+	if s.rankingSvc != nil {
+		_ = s.rankingSvc.InitializeTeam(ctx, team.ID)
 	}
-	if team.Status != TeamStatusPending {
-		return ErrInvalidTeamStatus
-	}
-	_ = s.teamNameSvc.ReleaseByTeam(ctx, id)
-	team.Status = TeamStatusRejected
-	return s.repo.Update(ctx, team)
+	return nil
 }
 
 func (s *Service) Cancel(ctx context.Context, id primitive.ObjectID) error {
@@ -332,7 +353,15 @@ func (s *Service) Cancel(ctx context.Context, id primitive.ObjectID) error {
 	}
 	_ = s.teamNameSvc.ReleaseByTeam(ctx, id)
 	team.Status = TeamStatusCancelled
-	return s.repo.Update(ctx, team)
+
+	if err := s.repo.Update(ctx, team); err != nil {
+		return err
+	}
+
+	if s.rankingSvc != nil {
+		_ = s.rankingSvc.DeleteByTeam(ctx, id)
+	}
+	return nil
 }
 
 func (s *Service) ExistsByMatriculaWithStatus(ctx context.Context, matricula string, statuses []TeamStatus) (bool, error) {

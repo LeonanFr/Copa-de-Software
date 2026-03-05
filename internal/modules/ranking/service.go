@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var (
@@ -160,6 +161,19 @@ func (s *Service) AddPuzzleEvent(ctx context.Context, teamCode, matricula string
 }
 
 func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
+
+	event := &ProcessedEvent{
+		TeamCode: teamCode,
+		Type:     "case",
+	}
+	err := s.repo.InsertProcessedEvent(ctx, event)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil
+		}
+		return err
+	}
+
 	team, err := s.teamSvc.GetByCode(ctx, teamCode)
 	if err != nil {
 		return err
@@ -170,7 +184,8 @@ func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
 	if team.Status != teams.TeamStatusApproved {
 		return errors.New("time não aprovado")
 	}
-	return s.AddScore(ctx, team.ID, 60, OriginMatch, "case", "Caso completo")
+
+	return s.AddScore(ctx, team.ID, 60, OriginMatch, "case", "Torneio completo")
 }
 
 func (s *Service) DeleteByTeam(ctx context.Context, teamID primitive.ObjectID) error {

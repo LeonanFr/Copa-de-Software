@@ -35,3 +35,10 @@ type RankingEntry struct {
 	TeamName string             `json:"teamName"`
 	Total    int                `json:"total"`
 }
+
+type ProcessedEvent struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty"`
+	TeamCode  string             `bson:"team_code"`
+	Type      string             `bson:"type"`
+	CreatedAt time.Time          `bson:"created_at"`
+}

@@ -3,6 +3,7 @@ package ranking
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"copasoftware/internal/database"
@@ -14,15 +15,39 @@ import (
 )
 
 type Repository struct {
-	scoreColl *mongo.Collection
-	rankColl  *mongo.Collection
+	scoreColl           *mongo.Collection
+	rankColl            *mongo.Collection
+	processedEventsColl *mongo.Collection
 }
 
 func NewRepository(db *database.Mongo) *Repository {
-	return &Repository{
-		scoreColl: db.DB.Collection("scores"),
-		rankColl:  db.DB.Collection("ranking"),
+	repo := &Repository{
+		scoreColl:           db.DB.Collection("scores"),
+		rankColl:            db.DB.Collection("ranking"),
+		processedEventsColl: db.DB.Collection("processed_events"),
 	}
+	repo.ensureIndexes(context.Background())
+	return repo
+}
+
+func (r *Repository) ensureIndexes(ctx context.Context) {
+	indexModel := mongo.IndexModel{
+		Keys: bson.D{
+			{Key: "team_code", Value: 1},
+			{Key: "type", Value: 1},
+		},
+		Options: options.Index().SetUnique(true),
+	}
+	_, err := r.processedEventsColl.Indexes().CreateOne(ctx, indexModel)
+	if err != nil {
+		log.Printf("Aviso: não foi possível criar índice único em processed_events: %v", err)
+	}
+}
+
+func (r *Repository) InsertProcessedEvent(ctx context.Context, event *ProcessedEvent) error {
+	event.CreatedAt = time.Now()
+	_, err := r.processedEventsColl.InsertOne(ctx, event)
+	return err
 }
 
 func (r *Repository) InsertScore(ctx context.Context, s *ScoreEntry) error {

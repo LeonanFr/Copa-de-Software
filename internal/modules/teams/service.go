@@ -338,7 +338,9 @@ func (s *Service) Approve(ctx context.Context, teamID primitive.ObjectID) error 
 	}
 
 	if s.rankingSvc != nil {
-		_ = s.rankingSvc.InitializeTeam(ctx, team.ID)
+		if err := s.rankingSvc.InitializeTeam(ctx, team.ID); err != nil {
+			log.Printf("ERRO ao inicializar ranking para time %s: %v", team.ID.Hex(), err)
+		}
 	}
 	return nil
 }

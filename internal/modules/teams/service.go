@@ -273,6 +273,13 @@ func (s *Service) CreateDraw(ctx context.Context, participantIDs []primitive.Obj
 		return nil, err
 	}
 	_ = s.teamNameSvc.AssignToTeam(ctx, nameID, team.ID)
+
+	if s.rankingSvc != nil {
+		if err := s.rankingSvc.InitializeTeam(ctx, team.ID); err != nil {
+			log.Printf("ERRO ao inicializar ranking para time %s: %v", team.ID.Hex(), err)
+		}
+	}
+
 	return team, nil
 }
 

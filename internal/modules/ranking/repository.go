@@ -99,12 +99,19 @@ func (r *Repository) FindAllScores(ctx context.Context) ([]ScoreEntry, error) {
 
 func (r *Repository) UpsertRanking(ctx context.Context, tr *TeamRanking) error {
 	tr.UpdatedAt = time.Now()
-	_, err := r.rankColl.ReplaceOne(
+
+	_, err := r.rankColl.UpdateOne(
 		ctx,
 		bson.M{"_id": tr.TeamID},
-		tr,
-		options.Replace().SetUpsert(true),
+		bson.M{
+			"$set": bson.M{
+				"total":      tr.Total,
+				"updated_at": tr.UpdatedAt,
+			},
+		},
+		options.Update().SetUpsert(true),
 	)
+
 	return err
 }
 

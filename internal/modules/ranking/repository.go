@@ -104,9 +104,6 @@ func (r *Repository) UpsertRanking(ctx context.Context, tr *TeamRanking) error {
 				"total":      tr.Total,
 				"updated_at": tr.UpdatedAt,
 			},
-			"$setOnInsert": bson.M{
-				"_id": tr.TeamID,
-			},
 		},
 		options.Update().SetUpsert(true),
 	)

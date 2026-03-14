@@ -4,6 +4,7 @@ import (
 	"context"
 	"copasoftware/internal/modules/teams"
 	"errors"
+	"log"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -105,18 +106,8 @@ func (s *Service) RecalculateAll(ctx context.Context) error {
 }
 
 func (s *Service) InitializeTeam(ctx context.Context, teamID primitive.ObjectID) error {
-	exists, err := s.repo.FindRankingByTeam(ctx, teamID)
-	if err != nil {
-		return err
-	}
-	if exists != nil {
-		return nil
-	}
-	tr := &TeamRanking{
-		TeamID: teamID,
-		Total:  0,
-	}
-	if err := s.repo.UpsertRanking(ctx, tr); err != nil {
+	if err := s.recalculateTeamRanking(ctx, teamID); err != nil {
+		log.Printf("InitializeTeam: erro ao recalcular time %s: %v", teamID.Hex(), err)
 		return err
 	}
 

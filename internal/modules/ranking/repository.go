@@ -64,17 +64,13 @@ func (r *Repository) FindScoresByTeam(ctx context.Context, teamID primitive.Obje
 	if err != nil {
 		return nil, err
 	}
-	defer func(cursor *mongo.Cursor, ctx context.Context) {
-		err := cursor.Close(ctx)
-		if err != nil {
-
-		}
-	}(cursor, ctx)
+	defer cursor.Close(ctx)
 
 	var scores []ScoreEntry
-	if err = cursor.All(ctx, &scores); err != nil {
+	if err := cursor.All(ctx, &scores); err != nil {
 		return nil, err
 	}
+
 	return scores, nil
 }
 

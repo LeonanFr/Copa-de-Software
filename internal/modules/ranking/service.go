@@ -72,7 +72,7 @@ func (s *Service) GetTeamRanking(ctx context.Context, teamID primitive.ObjectID)
 
 func (s *Service) recalculateTeamRanking(ctx context.Context, teamID primitive.ObjectID) error {
 	scores, err := s.repo.FindScoresByTeam(ctx, teamID)
-	if err != nil {
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
 		return err
 	}
 	total := 0

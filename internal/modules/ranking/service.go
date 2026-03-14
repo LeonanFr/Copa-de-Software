@@ -94,7 +94,8 @@ func (s *Service) RecalculateAll(ctx context.Context) error {
 	for _, team := range teamsList {
 		if team.Status == teams.TeamStatusApproved {
 			if err := s.recalculateTeamRanking(ctx, team.ID); err != nil {
-				return err
+				log.Printf("erro recalculando time %s: %v", team.ID.Hex(), err)
+				continue
 			}
 		}
 	}
@@ -111,7 +112,11 @@ func (s *Service) InitializeTeam(ctx context.Context, teamID primitive.ObjectID)
 		return err
 	}
 
-	ranking, _ := s.GetFullRanking(context.Background())
+	ranking, err := s.GetFullRanking(ctx)
+	if err != nil {
+		log.Printf("erro obtendo ranking completo: %v", err)
+		return err
+	}
 	Manager.Broadcast(ranking)
 
 	return nil
@@ -126,7 +131,8 @@ func (s *Service) GetFullRanking(ctx context.Context) ([]RankingEntry, error) {
 	for _, r := range rankings {
 		team, err := s.teamSvc.GetByID(ctx, r.TeamID)
 		if err != nil {
-			return nil, err
+			log.Printf("time %s não encontrado no ranking", r.TeamID.Hex())
+			continue
 		}
 		entries = append(entries, RankingEntry{
 			TeamID:   r.TeamID,

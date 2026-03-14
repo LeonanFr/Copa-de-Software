@@ -86,15 +86,18 @@ func (s *Service) recalculateTeamRanking(ctx context.Context, teamID primitive.O
 	return s.repo.UpsertRanking(ctx, tr)
 }
 
-func (s *Service) RecalculateAll(ctx context.Context) error {
+func (s *Service) RecalculateAll(ctx context.Context) ([]string, error) {
 	teamsList, err := s.teamSvc.List(ctx, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	var problemas []string
+
 	for _, team := range teamsList {
 		if team.Status == teams.TeamStatusApproved {
 			if err := s.recalculateTeamRanking(ctx, team.ID); err != nil {
-				log.Printf("erro recalculando time %s: %v", team.ID.Hex(), err)
+				problemas = append(problemas, team.ID.Hex())
 				continue
 			}
 		}
@@ -103,7 +106,7 @@ func (s *Service) RecalculateAll(ctx context.Context) error {
 	ranking, _ := s.GetFullRanking(context.Background())
 	Manager.Broadcast(ranking)
 
-	return nil
+	return problemas, nil
 }
 
 func (s *Service) InitializeTeam(ctx context.Context, teamID primitive.ObjectID) error {

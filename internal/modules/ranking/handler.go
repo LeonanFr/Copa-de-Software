@@ -106,11 +106,18 @@ func (h *Handler) addScore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) recalculateAll(w http.ResponseWriter, r *http.Request) {
-	if err := h.service.RecalculateAll(r.Context()); err != nil {
-		shared.RespondError(w, shared.NewInternalServerError("erro ao recalcular ranking", err))
+	idsComFalha, err := h.service.RecalculateAll(r.Context())
+	if err != nil {
+		shared.RespondError(w, shared.NewInternalServerError("colapso ao buscar os registros para recálculo", err))
 		return
 	}
-	shared.RespondJSON(w, http.StatusOK, map[string]string{"status": "ranking recalculado"})
+
+	resposta := map[string]interface{}{
+		"status": "processamento concluído",
+		"falhas": idsComFalha,
+	}
+
+	shared.RespondJSON(w, http.StatusOK, resposta)
 }
 
 func (h *Handler) HandlePuzzleEvent(w http.ResponseWriter, r *http.Request) {

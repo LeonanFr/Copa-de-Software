@@ -1,19 +1,52 @@
 package ranking
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
+	"time"
 
 	"copasoftware/internal/shared"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type JobStatus struct {
+	Done      bool      `json:"done"`
+	Error     string    `json:"error,omitempty"`
+	Falhas    []string  `json:"falhas,omitempty"`
+	StartedAt time.Time `json:"startedAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+var (
+	jobs   = map[string]*JobStatus{}
+	jobsMu sync.RWMutex
+)
+
+func init() {
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		for range ticker.C {
+			jobsMu.Lock()
+			for id, job := range jobs {
+				if time.Since(job.UpdatedAt) > 30*time.Minute {
+					delete(jobs, id)
+				}
+			}
+			jobsMu.Unlock()
+		}
+	}()
+}
+
 type Handler struct {
 	service *Service
 }
+
 type EventRequest struct {
 	TeamCode  string `json:"team_code"`
 	Type      string `json:"type"`
@@ -35,6 +68,7 @@ func RegisterAdminRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 	router.HandleFunc("/ranking/score", h.addScore).Methods("POST")
 	router.HandleFunc("/ranking/recalculate", h.recalculateAll).Methods("POST")
+	router.HandleFunc("/ranking/recalculate/status/{jobId}", h.getRecalculationStatus).Methods("GET")
 }
 
 func (h *Handler) getRanking(w http.ResponseWriter, r *http.Request) {
@@ -106,18 +140,51 @@ func (h *Handler) addScore(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) recalculateAll(w http.ResponseWriter, r *http.Request) {
-	idsComFalha, err := h.service.RecalculateAll(r.Context())
-	if err != nil {
-		shared.RespondError(w, shared.NewInternalServerError("colapso ao buscar os registros para recálculo", err))
+	jobID := uuid.New().String()
+
+	jobsMu.Lock()
+	jobs[jobID] = &JobStatus{
+		StartedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	jobsMu.Unlock()
+
+	go func() {
+		ctx := context.Background()
+		idsComFalha, err := h.service.RecalculateAll(ctx)
+
+		jobsMu.Lock()
+		defer jobsMu.Unlock()
+		job, exists := jobs[jobID]
+		if !exists {
+			return
+		}
+		if err != nil {
+			job.Error = err.Error()
+		} else {
+			job.Falhas = idsComFalha
+		}
+		job.Done = true
+		job.UpdatedAt = time.Now()
+	}()
+
+	shared.RespondJSON(w, http.StatusAccepted, map[string]string{"jobId": jobID})
+}
+
+func (h *Handler) getRecalculationStatus(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	jobID := vars["jobId"]
+
+	jobsMu.RLock()
+	status, exists := jobs[jobID]
+	jobsMu.RUnlock()
+
+	if !exists {
+		shared.RespondError(w, shared.NewNotFoundError("job não encontrado", nil))
 		return
 	}
 
-	resposta := map[string]interface{}{
-		"status": "processamento concluído",
-		"falhas": idsComFalha,
-	}
-
-	shared.RespondJSON(w, http.StatusOK, resposta)
+	shared.RespondJSON(w, http.StatusOK, status)
 }
 
 func (h *Handler) HandlePuzzleEvent(w http.ResponseWriter, r *http.Request) {

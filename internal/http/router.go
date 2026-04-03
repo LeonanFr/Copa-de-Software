@@ -71,6 +71,7 @@ func NewRouter(db *database.Mongo) http.Handler {
 	auth.NewHandler(router, authSvc)
 	router.HandleFunc("/events/puzzle", rankingHandler.HandlePuzzleEvent).Methods("POST")
 	router.HandleFunc("/events/case", rankingHandler.HandleCaseEvent).Methods("POST")
+	router.HandleFunc("/events/algorithm", rankingHandler.HandleAlgorithmEvent).Methods("POST")
 
 	teamSvc.SetRankingSvc(rankingSvc)
 

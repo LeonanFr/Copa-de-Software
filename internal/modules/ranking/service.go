@@ -188,6 +188,35 @@ func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
 	return s.AddScore(ctx, team.ID, 60, OriginMatch, "case", "Torneio completo")
 }
 
+func (s *Service) AddAlgorithmEvent(ctx context.Context, teamCode string, tournamentID string) error {
+	event := &ProcessedEvent{
+		TeamCode: teamCode,
+		Type:     "algorithm_" + tournamentID,
+	}
+
+	err := s.repo.InsertProcessedEvent(ctx, event)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return nil
+		}
+		return err
+	}
+
+	team, err := s.teamSvc.GetByCode(ctx, teamCode)
+	if err != nil {
+		return err
+	}
+	if team == nil {
+		return errors.New("time não encontrado")
+	}
+	if team.Status != teams.TeamStatusApproved {
+		return errors.New("time não aprovado")
+	}
+
+	description := "Desafio de algoritmo aceito no torneio: " + tournamentID
+	return s.AddScore(ctx, team.ID, 100, OriginMatch, "algorithm", description)
+}
+
 func (s *Service) DeleteByTeam(ctx context.Context, teamID primitive.ObjectID) error {
 	return s.repo.DeleteRankingByTeam(ctx, teamID)
 }

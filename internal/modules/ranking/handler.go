@@ -18,9 +18,10 @@ type Handler struct {
 }
 
 type EventRequest struct {
-	TeamCode  string `json:"team_code"`
-	Type      string `json:"type"`
-	Matricula string `json:"matricula,omitempty"`
+	TeamCode     string `json:"team_code"`
+	TournamentID string `json:"tournament_id,omitempty"`
+	Type         string `json:"type"`
+	Matricula    string `json:"matricula,omitempty"`
 }
 
 func NewHandler(service *Service) *Handler {
@@ -163,6 +164,27 @@ func (h *Handler) HandleCaseEvent(w http.ResponseWriter, r *http.Request) {
 	err := h.service.AddCaseEvent(r.Context(), req.TeamCode)
 	if err != nil {
 		shared.RespondError(w, shared.NewInternalServerError("erro ao processar evento", err))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) HandleAlgorithmEvent(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TournamentID string `json:"tournamentId"`
+		TeamCode     string `json:"teamCode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		shared.RespondError(w, shared.NewBadRequestError("corpo inválido", err))
+		return
+	}
+	if req.TeamCode == "" {
+		shared.RespondError(w, shared.NewBadRequestError("teamCode obrigatório", nil))
+		return
+	}
+	err := h.service.AddAlgorithmEvent(r.Context(), req.TeamCode, req.TournamentID)
+	if err != nil {
+		shared.RespondError(w, shared.NewInternalServerError("erro ao processar evento de algoritmo", err))
 		return
 	}
 	w.WriteHeader(http.StatusOK)

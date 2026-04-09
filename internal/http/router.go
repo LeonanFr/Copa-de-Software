@@ -20,6 +20,8 @@ import (
 func NewRouter(db *database.Mongo) http.Handler {
 	router := mux.NewRouter()
 
+	router.Use(RecoveryMiddleware)
+	router.Use(LoggingMiddleware)
 	router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setCORSHeaders(w, r)
 		w.WriteHeader(http.StatusOK)

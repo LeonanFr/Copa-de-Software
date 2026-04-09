@@ -2,12 +2,31 @@ package http
 
 import (
 	"context"
+	"encoding/json"
+	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
+	"time"
 
 	"copasoftware/internal/modules/auth"
 	"copasoftware/internal/shared"
 )
+
+func RecoveryMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("PANIC: %v\nStack: %s", err, debug.Stack())
+				setCORSHeaders(w, r)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]string{"error": "internal server error"})
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
+}
 
 func setCORSHeaders(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
@@ -61,4 +80,12 @@ func AuthMiddleware(authSvc *auth.Service) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func LoggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s - %v", r.Method, r.URL.Path, time.Since(start))
+	})
 }

@@ -19,7 +19,15 @@ func Connect(cfg config.Config) (*Mongo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.MongoURI))
+	clientOpts := options.Client().
+		ApplyURI(cfg.MongoURI).
+		SetMinPoolSize(5).
+		SetMaxPoolSize(50).
+		SetMaxConnIdleTime(5 * time.Minute).
+		SetConnectTimeout(5 * time.Second).
+		SetSocketTimeout(30 * time.Second)
+
+	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,7 @@ func Connect(cfg config.Config) (*Mongo, error) {
 	defer cancel()
 
 	clientOpts := options.Client().
+		ApplyURI(cfg.MongoURI).
 		SetMinPoolSize(5).
 		SetMaxPoolSize(50).
 		SetMaxConnIdleTime(10 * time.Minute).

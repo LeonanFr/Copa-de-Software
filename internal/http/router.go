@@ -20,6 +20,11 @@ import (
 func NewRouter(db *database.Mongo) http.Handler {
 	router := mux.NewRouter()
 
+	router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setCORSHeaders(w, r)
+		w.WriteHeader(http.StatusOK)
+	})
+
 	router.Use(corsMiddleware)
 
 	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

@@ -150,10 +150,13 @@ func (r *Repository) RecalculateAllRankings(ctx context.Context) error {
 			{"_id", "$team_id"},
 			{"total", bson.D{{"$sum", "$value"}}},
 		}}},
+		{{"$addFields", bson.D{
+			{"updated_at", "$$NOW"},
+		}}},
 		{{"$merge", bson.D{
 			{"into", "ranking"},
 			{"on", "_id"},
-			{"whenMatched", "replace"},
+			{"whenMatched", "merge"},
 			{"whenNotMatched", "insert"},
 		}}},
 	}

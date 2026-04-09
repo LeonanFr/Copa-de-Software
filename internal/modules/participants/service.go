@@ -154,3 +154,7 @@ func (s *Service) CancelByMatricula(ctx context.Context, matricula string) error
 	}
 	return s.Cancel(ctx, p.ID)
 }
+
+func (s *Service) FindByIDs(ctx context.Context, ids []primitive.ObjectID) ([]Participant, error) {
+	return s.repo.FindByIDs(ctx, ids)
+}

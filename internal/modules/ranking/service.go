@@ -130,10 +130,29 @@ func (s *Service) GetFullRanking(ctx context.Context) ([]RankingEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(rankings) == 0 {
+		return []RankingEntry{}, nil
+	}
+
+	teamIDs := make([]primitive.ObjectID, len(rankings))
+	for i, r := range rankings {
+		teamIDs[i] = r.TeamID
+	}
+
+	teamsList, err := s.teamSvc.FindByIDs(ctx, teamIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	teamMap := make(map[primitive.ObjectID]*teams.Team)
+	for _, t := range teamsList {
+		teamMap[t.ID] = t
+	}
+
 	entries := make([]RankingEntry, 0, len(rankings))
 	for _, r := range rankings {
-		team, err := s.teamSvc.GetByID(ctx, r.TeamID)
-		if err != nil {
+		team, ok := teamMap[r.TeamID]
+		if !ok {
 			log.Printf("time %s não encontrado no ranking", r.TeamID.Hex())
 			continue
 		}

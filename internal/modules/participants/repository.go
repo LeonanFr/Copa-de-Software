@@ -50,6 +50,23 @@ func (r *Repository) FindByID(ctx context.Context, id primitive.ObjectID) (*Part
 	return &p, err
 }
 
+func (r *Repository) FindByIDs(ctx context.Context, ids []primitive.ObjectID) ([]Participant, error) {
+	if len(ids) == 0 {
+		return []Participant{}, nil
+	}
+	filter := bson.M{"_id": bson.M{"$in": ids}}
+	cursor, err := r.coll.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var participants []Participant
+	if err = cursor.All(ctx, &participants); err != nil {
+		return nil, err
+	}
+	return participants, nil
+}
+
 func (r *Repository) FindAll(ctx context.Context) ([]Participant, error) {
 	cursor, err := r.coll.Find(ctx, bson.M{})
 	if err != nil {

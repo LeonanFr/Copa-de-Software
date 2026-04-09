@@ -13,6 +13,7 @@ import (
 	"copasoftware/internal/modules/teamnames"
 	"copasoftware/internal/shared"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -401,25 +402,40 @@ func (s *Service) ExistsByMatriculaWithStatusStrings(ctx context.Context, matric
 }
 
 func (s *Service) enrichTeams(ctx context.Context, teams []*Team) ([]*Team, error) {
+
+	var allIDs []primitive.ObjectID
 	for _, team := range teams {
-		if len(team.Participants) > 0 {
-			participantsList := make([]ParticipantData, 0, len(team.Participants))
-			for _, pid := range team.Participants {
-				p, err := s.participantSvc.GetByID(ctx, pid)
-				if err != nil {
-					if errors.Is(err, participants.ErrParticipantNotFound) {
-						continue
-					}
-					return nil, err
-				}
-				participantsList = append(participantsList, ParticipantData{
-					Matricula: p.Matricula,
-					Nome:      p.Nome,
-					Semestre:  p.Semestre,
-				})
-			}
-			team.ParticipantData = participantsList
+		allIDs = append(allIDs, team.Participants...)
+	}
+	if len(allIDs) == 0 {
+		return teams, nil
+	}
+
+	participantsList, err := s.participantSvc.FindByIDs(ctx, allIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	participantMap := make(map[primitive.ObjectID]ParticipantData)
+	for _, p := range participantsList {
+		participantMap[p.ID] = ParticipantData{
+			Matricula: p.Matricula,
+			Nome:      p.Nome,
+			Semestre:  p.Semestre,
 		}
+	}
+
+	for _, team := range teams {
+		if len(team.Participants) == 0 {
+			continue
+		}
+		data := make([]ParticipantData, 0, len(team.Participants))
+		for _, pid := range team.Participants {
+			if pd, ok := participantMap[pid]; ok {
+				data = append(data, pd)
+			}
+		}
+		team.ParticipantData = data
 	}
 	return teams, nil
 }
@@ -437,4 +453,21 @@ func (s *Service) GetByCode(ctx context.Context, code string) (*Team, error) {
 		return nil, err
 	}
 	return enriched[0], nil
+}
+
+func (s *Service) FindByIDs(ctx context.Context, ids []primitive.ObjectID) ([]*Team, error) {
+	if len(ids) == 0 {
+		return []*Team{}, nil
+	}
+	filter := bson.M{"_id": bson.M{"$in": ids}}
+	cursor, err := s.repo.coll.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var teams []*Team
+	if err = cursor.All(ctx, &teams); err != nil {
+		return nil, err
+	}
+	return teams, nil
 }

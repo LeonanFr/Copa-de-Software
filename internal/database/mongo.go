@@ -22,7 +22,7 @@ func Connect(cfg config.Config) (*Mongo, error) {
 	clientOpts := options.Client().
 		ApplyURI(cfg.MongoURI).
 		SetMinPoolSize(5).
-		SetMaxPoolSize(50).
+		SetMaxPoolSize(15).
 		SetMaxConnIdleTime(5 * time.Minute).
 		SetConnectTimeout(5 * time.Second).
 		SetSocketTimeout(60 * time.Second)

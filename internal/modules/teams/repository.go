@@ -10,7 +10,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Repository struct {
@@ -197,17 +196,12 @@ func (r *Repository) FindByStatuses(ctx context.Context, statuses []TeamStatus) 
 	filter := bson.M{
 		"status": bson.M{"$in": statuses},
 	}
-	opts := options.Find().SetBatchSize(100)
-	cursor, err := r.coll.Find(ctx, filter, opts)
+	cursor, err := r.coll.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	defer func(cursor *mongo.Cursor, ctx context.Context) {
-		err := cursor.Close(ctx)
-		if err != nil {
+	defer cursor.Close(ctx)
 
-		}
-	}(cursor, ctx)
 	var teams []*Team
 	if err = cursor.All(ctx, &teams); err != nil {
 		return nil, err

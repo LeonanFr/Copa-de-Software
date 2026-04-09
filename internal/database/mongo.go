@@ -25,7 +25,7 @@ func Connect(cfg config.Config) (*Mongo, error) {
 		SetMaxPoolSize(50).
 		SetMaxConnIdleTime(5 * time.Minute).
 		SetConnectTimeout(5 * time.Second).
-		SetSocketTimeout(30 * time.Second)
+		SetSocketTimeout(60 * time.Second)
 
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {

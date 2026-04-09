@@ -143,3 +143,20 @@ func (r *Repository) DeleteRankingByTeam(ctx context.Context, teamID primitive.O
 	_, err := r.rankColl.DeleteOne(ctx, bson.M{"_id": teamID})
 	return err
 }
+
+func (r *Repository) RecalculateAllRankings(ctx context.Context) error {
+	pipeline := mongo.Pipeline{
+		{{"$group", bson.D{
+			{"_id", "$team_id"},
+			{"total", bson.D{{"$sum", "$value"}}},
+		}}},
+		{{"$merge", bson.D{
+			{"into", "ranking"},
+			{"on", "_id"},
+			{"whenMatched", "replace"},
+			{"whenNotMatched", "insert"},
+		}}},
+	}
+	_, err := r.scoreColl.Aggregate(ctx, pipeline)
+	return err
+}

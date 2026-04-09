@@ -87,26 +87,13 @@ func (s *Service) recalculateTeamRanking(ctx context.Context, teamID primitive.O
 }
 
 func (s *Service) RecalculateAll(ctx context.Context) ([]string, error) {
-	teamsList, err := s.teamSvc.List(ctx, nil)
-	if err != nil {
+	if err := s.repo.RecalculateAllRankings(ctx); err != nil {
 		return nil, err
 	}
 
-	var problemas []string
-
-	for _, team := range teamsList {
-		if team.Status == teams.TeamStatusApproved {
-			if err := s.recalculateTeamRanking(ctx, team.ID); err != nil {
-				problemas = append(problemas, team.ID.Hex())
-				continue
-			}
-		}
-	}
-
-	ranking, _ := s.GetFullRanking(context.Background())
+	ranking, _ := s.GetFullRanking(ctx)
 	Manager.Broadcast(ranking)
-
-	return problemas, nil
+	return nil, nil
 }
 
 func (s *Service) InitializeTeam(ctx context.Context, teamID primitive.ObjectID) error {

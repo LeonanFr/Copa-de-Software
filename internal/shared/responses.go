@@ -21,8 +21,14 @@ func RespondJSON(w http.ResponseWriter, status int, data interface{}) {
 }
 
 func RespondError(w http.ResponseWriter, err *AppError) {
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.Code)
+
 	json.NewEncoder(w).Encode(Response{
 		Success: false,
 		Error:   err.Message,

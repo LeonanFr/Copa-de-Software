@@ -144,14 +144,21 @@ func (r *Repository) DeleteRankingByTeam(ctx context.Context, teamID primitive.O
 	return err
 }
 
-func (r *Repository) RecalculateAllRankings(ctx context.Context) error {
+func (r *Repository) RecalculateAllRankings(ctx context.Context, approvedTeamIDs []primitive.ObjectID) error {
+
+	_, err := r.rankColl.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": approvedTeamIDs}})
+	if err != nil {
+		return err
+	}
+
 	pipeline := mongo.Pipeline{
+		{{"$match", bson.M{"team_id": bson.M{"$in": approvedTeamIDs}}}},
 		{{"$group", bson.D{
 			{"_id", "$team_id"},
 			{"total", bson.D{{"$sum", "$value"}}},
 		}}},
 		{{"$addFields", bson.D{
-			{"updated_at", "$$NOW"},
+			{"updated_at", time.Now()},
 		}}},
 		{{"$merge", bson.D{
 			{"into", "ranking"},
@@ -160,6 +167,22 @@ func (r *Repository) RecalculateAllRankings(ctx context.Context) error {
 			{"whenNotMatched", "insert"},
 		}}},
 	}
-	_, err := r.scoreColl.Aggregate(ctx, pipeline)
-	return err
+	_, err = r.scoreColl.Aggregate(ctx, pipeline)
+	if err != nil {
+		return err
+	}
+
+	for _, teamID := range approvedTeamIDs {
+		update := bson.M{
+			"$setOnInsert": bson.M{
+				"total":      0,
+				"updated_at": time.Now(),
+			},
+		}
+		_, err := r.rankColl.UpdateOne(ctx, bson.M{"_id": teamID}, update, options.Update().SetUpsert(true))
+		if err != nil {
+			log.Printf("Erro ao inserir time %s com total 0: %v", teamID.Hex(), err)
+		}
+	}
+	return nil
 }

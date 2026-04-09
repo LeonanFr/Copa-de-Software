@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Repository struct {
@@ -216,4 +217,24 @@ func (r *Repository) FindByCode(ctx context.Context, code string) (*Team, error)
 		return nil, nil
 	}
 	return &t, err
+}
+
+func (r *Repository) FindApprovedTeamIDs(ctx context.Context) ([]primitive.ObjectID, error) {
+	filter := bson.M{"status": TeamStatusApproved}
+	cursor, err := r.coll.Find(ctx, filter, options.Find().SetProjection(bson.M{"_id": 1}))
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+	var ids []primitive.ObjectID
+	for cursor.Next(ctx) {
+		var team struct {
+			ID primitive.ObjectID `bson:"_id"`
+		}
+		if err := cursor.Decode(&team); err != nil {
+			return nil, err
+		}
+		ids = append(ids, team.ID)
+	}
+	return ids, nil
 }

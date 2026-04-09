@@ -87,7 +87,12 @@ func (s *Service) recalculateTeamRanking(ctx context.Context, teamID primitive.O
 }
 
 func (s *Service) RecalculateAll(ctx context.Context) ([]string, error) {
-	if err := s.repo.RecalculateAllRankings(ctx); err != nil {
+	teamIDs, err := s.teamSvc.GetApprovedTeamIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.RecalculateAllRankings(ctx, teamIDs); err != nil {
 		return nil, err
 	}
 

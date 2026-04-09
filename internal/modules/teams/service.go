@@ -471,3 +471,7 @@ func (s *Service) FindByIDs(ctx context.Context, ids []primitive.ObjectID) ([]*T
 	}
 	return teams, nil
 }
+
+func (s *Service) GetApprovedTeamIDs(ctx context.Context) ([]primitive.ObjectID, error) {
+	return s.repo.FindApprovedTeamIDs(ctx)
+}

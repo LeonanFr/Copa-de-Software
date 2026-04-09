@@ -20,12 +20,14 @@ func Connect(cfg config.Config) (*Mongo, error) {
 	defer cancel()
 
 	clientOpts := options.Client().
-		ApplyURI(cfg.MongoURI).
 		SetMinPoolSize(5).
-		SetMaxPoolSize(15).
-		SetMaxConnIdleTime(5 * time.Minute).
-		SetConnectTimeout(5 * time.Second).
-		SetSocketTimeout(60 * time.Second)
+		SetMaxPoolSize(50).
+		SetMaxConnIdleTime(10 * time.Minute).
+		SetConnectTimeout(10 * time.Second).
+		SetSocketTimeout(60 * time.Second).
+		SetHeartbeatInterval(15 * time.Second).
+		SetRetryReads(true).
+		SetRetryWrites(true)
 
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {

@@ -47,11 +47,6 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		setCORS(w)
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
 		next.ServeHTTP(w, r)
 	})
 }

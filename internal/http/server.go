@@ -17,7 +17,7 @@ func New(port string, handler http.Handler) *Server {
 			Handler:      handler,
 			ReadTimeout:  30 * time.Second,
 			WriteTimeout: 30 * time.Second,
-			IdleTimeout:  60 * time.Second,
+			IdleTimeout:  120 * time.Second,
 		},
 	}
 }

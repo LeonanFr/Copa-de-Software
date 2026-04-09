@@ -11,8 +11,13 @@ type Config struct {
 }
 
 func Load() Config {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = getEnv("SERVER_PORT", "8080")
+	}
+
 	return Config{
-		ServerPort: getEnv("SERVER_PORT", "8080"),
+		ServerPort: port,
 		MongoURI:   getEnv("MONGO_URI", ""),
 		MongoDB:    getEnv("MONGO_DB", "copasoftware"),
 	}

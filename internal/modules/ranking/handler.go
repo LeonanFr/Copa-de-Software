@@ -39,6 +39,44 @@ func RegisterAdminRoutes(router *mux.Router, service *Service) {
 	h := &Handler{service: service}
 	router.HandleFunc("/ranking/score", h.addScore).Methods("POST")
 	router.HandleFunc("/ranking/recalculate", h.recalculateAll).Methods("POST")
+	router.HandleFunc("/ranking/scores/batch", h.batchAddScores).Methods("POST")
+}
+
+type batchAddScoresRequest struct {
+	Scores []BatchScoreRequest `json:"scores"`
+}
+
+func (h *Handler) batchAddScores(w http.ResponseWriter, r *http.Request) {
+	var req batchAddScoresRequest
+	if err := shared.DecodeAndValidate(r, &req); err != nil {
+		shared.RespondError(w, err)
+		return
+	}
+
+	if len(req.Scores) == 0 {
+		shared.RespondError(w, shared.NewBadRequestError("lote de pontuações vazio", nil))
+		return
+	}
+
+	processed, err := h.service.AddScoresBatch(r.Context(), req.Scores)
+	if err != nil {
+		var appErr *shared.AppError
+		if errors.As(err, &appErr) {
+			shared.RespondError(w, appErr)
+		}
+		return
+	}
+
+	ranking, _ := h.service.GetFullRanking(r.Context())
+	Manager.Broadcast(ranking)
+
+	shared.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data": map[string]int{
+			"processed": processed,
+		},
+		"message": "Lote de pontuações registrado com sucesso.",
+	})
 }
 
 func (h *Handler) getRanking(w http.ResponseWriter, r *http.Request) {

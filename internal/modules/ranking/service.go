@@ -3,8 +3,10 @@ package ranking
 import (
 	"context"
 	"copasoftware/internal/modules/teams"
+	"copasoftware/internal/shared"
 	"errors"
 	"log"
+	"strconv"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,6 +19,14 @@ var (
 type Service struct {
 	repo    *Repository
 	teamSvc *teams.Service
+}
+
+type BatchScoreRequest struct {
+	TeamID      string `json:"teamId"`
+	Value       int    `json:"value"`
+	Origin      string `json:"origin"`
+	Modality    string `json:"modality,omitempty"`
+	Description string `json:"description"`
 }
 
 func NewService(repo *Repository, teamSvc *teams.Service) *Service {
@@ -54,6 +64,77 @@ func (s *Service) AddScore(ctx context.Context, teamID primitive.ObjectID, value
 	Manager.Broadcast(ranking)
 
 	return nil
+}
+
+func (s *Service) AddScoresBatch(ctx context.Context, reqs []BatchScoreRequest) (int, error) {
+	if len(reqs) == 0 {
+		return 0, shared.NewBadRequestError("lote de pontuações vazio", nil)
+	}
+
+	session, err := s.repo.StartSession()
+	if err != nil {
+		return 0, shared.NewInternalServerError("erro ao iniciar sessão", err)
+	}
+	defer session.EndSession(ctx)
+
+	inserted := 0
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+		affectedTeams := make(map[primitive.ObjectID]struct{})
+
+		for i, req := range reqs {
+			if req.TeamID == "" {
+				return nil, shared.NewBadRequestError("teamId é obrigatório no item "+strconv.Itoa(i), nil)
+			}
+			if req.Description == "" {
+				return nil, shared.NewBadRequestError("description obrigatório no item "+strconv.Itoa(i), nil)
+			}
+			origin := ScoreOrigin(req.Origin)
+			if origin != OriginMatch && origin != OriginPenalty && origin != OriginBonus {
+				return nil, shared.NewBadRequestError("origem inválida no item "+strconv.Itoa(i)+": "+req.Origin, nil)
+			}
+
+			teamID, err := primitive.ObjectIDFromHex(req.TeamID)
+			if err != nil {
+				return nil, shared.NewBadRequestError("teamId inválido no item "+strconv.Itoa(i), err)
+			}
+
+			team, err := s.teamSvc.GetByID(sessCtx, teamID)
+			if err != nil {
+				if errors.Is(err, teams.ErrTeamNotFound) {
+					return nil, shared.NewNotFoundError("Time com ID "+req.TeamID+" não encontrado", nil)
+				}
+				return nil, shared.NewInternalServerError("erro ao buscar time", err)
+			}
+			if team.Status != teams.TeamStatusApproved {
+				return nil, shared.NewBadRequestError("Time com ID "+req.TeamID+" não está aprovado", nil)
+			}
+
+			entry := &ScoreEntry{
+				TeamID:      teamID,
+				Value:       req.Value,
+				Origin:      origin,
+				Modality:    req.Modality,
+				Description: req.Description,
+			}
+			if err := s.repo.InsertScore(sessCtx, entry); err != nil {
+				return nil, shared.NewInternalServerError("erro ao inserir pontuação", err)
+			}
+			inserted++
+			affectedTeams[teamID] = struct{}{}
+		}
+
+		for teamID := range affectedTeams {
+			if err := s.recalculateTeamRanking(sessCtx, teamID); err != nil {
+				return nil, shared.NewInternalServerError("erro ao recalcular ranking", err)
+			}
+		}
+		return nil, nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+	return inserted, nil
 }
 
 func (s *Service) GetTeamRanking(ctx context.Context, teamID primitive.ObjectID) (*TeamRanking, error) {

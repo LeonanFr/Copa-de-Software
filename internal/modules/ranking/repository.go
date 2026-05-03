@@ -15,6 +15,7 @@ import (
 )
 
 type Repository struct {
+	client              *mongo.Client
 	scoreColl           *mongo.Collection
 	rankColl            *mongo.Collection
 	processedEventsColl *mongo.Collection
@@ -22,12 +23,17 @@ type Repository struct {
 
 func NewRepository(db *database.Mongo) *Repository {
 	repo := &Repository{
+		client:              db.Client,
 		scoreColl:           db.DB.Collection("scores"),
 		rankColl:            db.DB.Collection("ranking"),
 		processedEventsColl: db.DB.Collection("processed_events"),
 	}
 	repo.ensureIndexes(context.Background())
 	return repo
+}
+
+func (r *Repository) StartSession() (mongo.Session, error) {
+	return r.client.StartSession()
 }
 
 func (r *Repository) ensureIndexes(ctx context.Context) {

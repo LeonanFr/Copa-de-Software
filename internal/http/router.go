@@ -1,6 +1,7 @@
 package http
 
 import (
+	"copasoftware/internal/modules/checkin"
 	"net/http"
 	"os"
 
@@ -64,6 +65,9 @@ func NewRouter(db *database.Mongo) http.Handler {
 
 	rankingHandler := ranking.NewHandler(rankingSvc)
 
+	checkinRepo := checkin.NewRepository(db)
+	checkinSvc := checkin.NewService(checkinRepo, participantSvc)
+
 	participants.RegisterPublicRoutes(router, participantSvc)
 	signup.NewHandler(router, signupSvc)
 	teams.RegisterPublicRoutes(router, teamSvc)
@@ -85,6 +89,7 @@ func NewRouter(db *database.Mongo) http.Handler {
 	teams.RegisterAdminRoutes(adminRouter, teamSvc)
 	ranking.RegisterAdminRoutes(adminRouter, rankingSvc)
 	participants.RegisterAdminRoutes(adminRouter, participantSvc)
+	checkin.NewHandler(adminRouter, checkinSvc)
 
 	return router
 }

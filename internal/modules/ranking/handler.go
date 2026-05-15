@@ -211,19 +211,26 @@ func (h *Handler) HandleAlgorithmEvent(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TournamentID string `json:"tournamentId"`
 		TeamCode     string `json:"teamCode"`
+		Value        int    `json:"value"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		shared.RespondError(w, shared.NewBadRequestError("corpo inválido", err))
 		return
 	}
-	if req.TeamCode == "" {
-		shared.RespondError(w, shared.NewBadRequestError("teamCode obrigatório", nil))
-		return
-	}
-	err := h.service.AddAlgorithmEvent(r.Context(), req.TeamCode, req.TournamentID)
-	if err != nil {
+
+	if err := h.service.AddAlgorithmEvent(r.Context(), req.TeamCode, req.TournamentID, req.Value); err != nil {
+		var appErr *shared.AppError
+		if errors.As(err, &appErr) {
+			shared.RespondError(w, appErr)
+			return
+		}
+
 		shared.RespondError(w, shared.NewInternalServerError("erro ao processar evento de algoritmo", err))
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+
+	shared.RespondJSON(w, http.StatusOK, map[string]string{
+		"status": "evento de algoritmo processado",
+	})
 }

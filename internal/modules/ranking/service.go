@@ -280,33 +280,88 @@ func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
 	return s.AddScore(ctx, team.ID, 60, OriginMatch, "case", "Torneio completo")
 }
 
-func (s *Service) AddAlgorithmEvent(ctx context.Context, teamCode string, tournamentID string) error {
-	event := &ProcessedEvent{
-		TeamCode: teamCode,
-		Type:     "algorithm_" + tournamentID,
+func (s *Service) AddAlgorithmEvent(ctx context.Context, teamCode string, tournamentID string, value int) error {
+	if teamCode == "" {
+		return shared.NewBadRequestError("teamCode obrigatório", nil)
 	}
 
-	err := s.repo.InsertProcessedEvent(ctx, event)
+	if tournamentID == "" {
+		return shared.NewBadRequestError("tournamentId obrigatório", nil)
+	}
+
+	if value <= 0 {
+		return shared.NewBadRequestError("value deve ser maior que zero", nil)
+	}
+
+	session, err := s.repo.StartSession()
 	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
-			return nil
+		return shared.NewInternalServerError("erro ao iniciar sessão", err)
+	}
+	defer session.EndSession(ctx)
+
+	var shouldBroadcast bool
+
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+		team, err := s.teamSvc.GetByCode(sessCtx, teamCode)
+		if err != nil {
+			return nil, err
 		}
-		return err
-	}
 
-	team, err := s.teamSvc.GetByCode(ctx, teamCode)
+		if team == nil {
+			return nil, shared.NewNotFoundError("time não encontrado", nil)
+		}
+
+		if team.Status != teams.TeamStatusApproved {
+			return nil, shared.NewBadRequestError("time não aprovado", nil)
+		}
+
+		event := &ProcessedEvent{
+			TeamCode: teamCode,
+			Type:     "algorithm:" + tournamentID,
+		}
+
+		created, err := s.repo.TryMarkProcessedEvent(sessCtx, event)
+		if err != nil {
+			return nil, shared.NewInternalServerError("erro ao registrar evento processado", err)
+		}
+
+		if !created {
+			return nil, nil
+		}
+
+		entry := &ScoreEntry{
+			TeamID:      team.ID,
+			Value:       value,
+			Origin:      OriginMatch,
+			Modality:    "algorithm",
+			Description: "Desafio de algoritmo aceito: " + tournamentID,
+		}
+
+		if err := s.repo.InsertScore(sessCtx, entry); err != nil {
+			return nil, shared.NewInternalServerError("erro ao inserir pontuação", err)
+		}
+
+		if err := s.recalculateTeamRanking(sessCtx, team.ID); err != nil {
+			return nil, shared.NewInternalServerError("erro ao recalcular ranking", err)
+		}
+
+		shouldBroadcast = true
+		return nil, nil
+	})
+
 	if err != nil {
 		return err
 	}
-	if team == nil {
-		return errors.New("time não encontrado")
-	}
-	if team.Status != teams.TeamStatusApproved {
-		return errors.New("time não aprovado")
+
+	if shouldBroadcast {
+		ranking, err := s.GetFullRanking(ctx)
+		if err != nil {
+			return shared.NewInternalServerError("erro ao obter ranking atualizado", err)
+		}
+		Manager.Broadcast(ranking)
 	}
 
-	description := "Desafio de algoritmo aceito no torneio: " + tournamentID
-	return s.AddScore(ctx, team.ID, 100, OriginMatch, "algorithm", description)
+	return nil
 }
 
 func (s *Service) DeleteByTeam(ctx context.Context, teamID primitive.ObjectID) error {

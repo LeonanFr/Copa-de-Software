@@ -56,6 +56,36 @@ func (r *Repository) InsertProcessedEvent(ctx context.Context, event *ProcessedE
 	return err
 }
 
+func (r *Repository) TryMarkProcessedEvent(ctx context.Context, event *ProcessedEvent) (bool, error) {
+	now := time.Now()
+	event.CreatedAt = now
+
+	filter := bson.M{
+		"team_code": event.TeamCode,
+		"type":      event.Type,
+	}
+
+	update := bson.M{
+		"$setOnInsert": bson.M{
+			"team_code":  event.TeamCode,
+			"type":       event.Type,
+			"created_at": now,
+		},
+	}
+
+	result, err := r.processedEventsColl.UpdateOne(
+		ctx,
+		filter,
+		update,
+		options.Update().SetUpsert(true),
+	)
+	if err != nil {
+		return false, err
+	}
+
+	return result.UpsertedCount == 1, nil
+}
+
 func (r *Repository) InsertScore(ctx context.Context, s *ScoreEntry) error {
 	s.CreatedAt = time.Now()
 	result, err := r.scoreColl.InsertOne(ctx, s)

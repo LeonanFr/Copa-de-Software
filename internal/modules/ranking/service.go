@@ -249,7 +249,7 @@ func (s *Service) AddPuzzleEvent(ctx context.Context, teamCode, matricula string
 	if team.Status != teams.TeamStatusApproved {
 		return errors.New("time não aprovado")
 	}
-	return s.AddScore(ctx, team.ID, 10, OriginMatch, "puzzle", "Puzzle resolvido por "+matricula)
+	return s.AddScore(ctx, team.ID, 15, OriginMatch, "puzzle", "Puzzle resolvido por "+matricula)
 }
 
 func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
@@ -277,7 +277,7 @@ func (s *Service) AddCaseEvent(ctx context.Context, teamCode string) error {
 		return errors.New("time não aprovado")
 	}
 
-	return s.AddScore(ctx, team.ID, 60, OriginMatch, "case", "Torneio completo")
+	return s.AddScore(ctx, team.ID, 45, OriginMatch, "case", "Torneio completo")
 }
 
 func (s *Service) AddAlgorithmEvent(ctx context.Context, teamCode string, tournamentID string, value int) error {
